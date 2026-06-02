@@ -20,6 +20,11 @@ add_action('rest_api_init', function () {
         'callback'            => 'cm_create_post',
         'permission_callback' => 'cm_check_token',
     ]);
+    register_rest_route('content-manager/v1', '/posts/(?P<id>\d+)', [
+        'methods'             => 'PUT',
+        'callback'            => 'cm_update_post',
+        'permission_callback' => 'cm_check_token',
+    ]);
 });
 
 function cm_check_token(WP_REST_Request $request): bool
@@ -106,6 +111,50 @@ function cm_create_post(WP_REST_Request $request): WP_REST_Response
         'post_url' => get_permalink($post_id),
         'status'   => $status,
     ], 201);
+}
+
+function cm_update_post(WP_REST_Request $request): WP_REST_Response
+{
+    $post_id = (int) $request->get_param('id');
+    $params  = $request->get_json_params();
+
+    if (! get_post($post_id)) {
+        return new WP_REST_Response(['error' => 'Post bulunamadı: ' . $post_id], 404);
+    }
+
+    $update_data = ['ID' => $post_id];
+
+    if (! empty($params['title'])) {
+        $update_data['post_title'] = sanitize_text_field($params['title']);
+    }
+    if (! empty($params['content'])) {
+        $update_data['post_content'] = wp_kses_post($params['content']);
+    }
+    if (! empty($params['excerpt'])) {
+        $update_data['post_excerpt'] = sanitize_textarea_field($params['excerpt']);
+    }
+
+    if (count($update_data) > 1) {
+        $result = wp_update_post($update_data, true);
+        if (is_wp_error($result)) {
+            return new WP_REST_Response(['error' => $result->get_error_message()], 500);
+        }
+    }
+
+    // Öne çıkan görsel güncelle
+    if (! empty($params['featured_image'])) {
+        $title         = get_the_title($post_id);
+        $attachment_id = cm_sideload_image($params['featured_image'], $post_id, $title);
+        if ($attachment_id && ! is_wp_error($attachment_id)) {
+            set_post_thumbnail($post_id, $attachment_id);
+        }
+    }
+
+    return new WP_REST_Response([
+        'post_id'  => $post_id,
+        'post_url' => get_permalink($post_id),
+        'updated'  => true,
+    ], 200);
 }
 
 function cm_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
