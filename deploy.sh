@@ -2,61 +2,39 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Content Manager API Plugin — Deploy Script
 # Kullanım:
-#   ./deploy.sh alpindede      → alpindede.com'a deploy et
-#   ./deploy.sh estonya        → 192.168.0.82'ye deploy et
-#   ./deploy.sh all            → her ikisine deploy et
+#   ./deploy.sh alpindede   → alpindede eklentisini kopyala
+#   ./deploy.sh estonya     → estonya eklentisini kopyala
+#   ./deploy.sh all         → her ikisine kopyala
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -e
 
 PLUGIN_FILE="$(dirname "$0")/content-manager-api.php"
 PLUGIN_NAME="content-manager-api"
-REMOTE_PATH="/var/www/html/wp-content/plugins/${PLUGIN_NAME}/"
 
-# ── Site tanımları ────────────────────────────────────────────────────────────
-declare -A SITES
-SITES[alpindede_host]="alpindede.com"
-SITES[alpindede_user]="bmericc"
-SITES[alpindede_path]="/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}/"
-
-SITES[estonya_host]="estonya.prj.be"
-SITES[estonya_user]="bmericc"
-SITES[estonya_path]="/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}/"
-
-# ─────────────────────────────────────────────────────────────────────────────
+PATHS=(
+    "/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}"
+    "/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}"
+)
 
 deploy_to() {
-    local SITE="$1"
-    local HOST="${SITES[${SITE}_host]}"
-    local USER="${SITES[${SITE}_user]}"
-    local PATH_REMOTE="${SITES[${SITE}_path]}"
-
-    echo ""
-    echo "▶ ${SITE} → ${USER}@${HOST}:${PATH_REMOTE}"
-
-    ssh "${USER}@${HOST}" "mkdir -p ${PATH_REMOTE}"
-    scp "${PLUGIN_FILE}" "${USER}@${HOST}:${PATH_REMOTE}${PLUGIN_NAME}.php"
-
-    ssh "${USER}@${HOST}" "
-        if command -v wp &>/dev/null; then
-            WP_DIR=\$(find /var/www -name 'wp-config.php' 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo '/var/www/html')
-            wp plugin activate ${PLUGIN_NAME} --path=\${WP_DIR} --allow-root 2>/dev/null && echo '  ✓ Plugin aktif edildi (wp-cli)' || echo '  ⚠ WP admin panelinden aktif edin'
-        else
-            echo '  ⚠ wp-cli bulunamadı — WP admin panelinden aktif edin'
-        fi
-    "
-
-    echo "  ✓ ${SITE} deploy tamamlandı"
+    local DEST="$1"
+    echo "▶ Kopyalanıyor: ${DEST}/"
+    mkdir -p "${DEST}"
+    cp "${PLUGIN_FILE}" "${DEST}/${PLUGIN_NAME}.php"
+    echo "  ✓ Tamamlandı"
 }
 
-TARGET="${1:-all}"
-
-case "$TARGET" in
-    alpindede) deploy_to alpindede ;;
-    estonya)   deploy_to estonya   ;;
+case "${1:-all}" in
+    alpindede)
+        deploy_to "/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}"
+        ;;
+    estonya)
+        deploy_to "/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}"
+        ;;
     all)
-        deploy_to alpindede
-        deploy_to estonya
+        deploy_to "/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}"
         ;;
     *)
         echo "Kullanım: $0 [alpindede|estonya|all]"
@@ -66,8 +44,5 @@ esac
 
 echo ""
 echo "✅ Deploy tamamlandı."
-echo ""
-echo "Sonraki adımlar:"
-echo "  1. WordPress admin → Eklentiler → 'Content Manager API' aktif edin"
-echo "  2. Ayarlar → Content Manager API → Token girin (WORDPRESS_PLUGIN_TOKEN ile aynı)"
-echo "  3. Endpoint: /wp-json/content-manager/v1/posts"
+echo "   WordPress admin → Eklentiler → 'Content Manager API' aktif edin"
+echo "   Ayarlar → Content Manager API → Token girin"
