@@ -16,12 +16,12 @@ REMOTE_PATH="/var/www/html/wp-content/plugins/${PLUGIN_NAME}/"
 # ── Site tanımları ────────────────────────────────────────────────────────────
 declare -A SITES
 SITES[alpindede_host]="alpindede.com"
-SITES[alpindede_user]="root"
-SITES[alpindede_path]="/var/www/html/wp-content/plugins/${PLUGIN_NAME}/"
+SITES[alpindede_user]="bmericc"
+SITES[alpindede_path]="/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}/"
 
-SITES[estonya_host]="192.168.0.82"
-SITES[estonya_user]="root"
-SITES[estonya_path]="/var/www/html/wp-content/plugins/${PLUGIN_NAME}/"
+SITES[estonya_host]="estonya.prj.be"
+SITES[estonya_user]="bmericc"
+SITES[estonya_path]="/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}/"
 
 # ─────────────────────────────────────────────────────────────────────────────
 
