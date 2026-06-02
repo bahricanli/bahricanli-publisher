@@ -13,8 +13,8 @@ PLUGIN_FILE="$(dirname "$0")/content-manager-api.php"
 PLUGIN_NAME="content-manager-api"
 
 PATHS=(
-    "/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}"
-    "/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}"
+    "/root/wordpress/sites/alpindede/wp-content/plugins/${PLUGIN_NAME}"
+    "/root/wordpress/sites/estonya/wp-content/plugins/${PLUGIN_NAME}"
 )
 
 deploy_to() {
@@ -27,14 +27,14 @@ deploy_to() {
 
 case "${1:-all}" in
     alpindede)
-        deploy_to "/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/alpindede/wp-content/plugins/${PLUGIN_NAME}"
         ;;
     estonya)
-        deploy_to "/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/estonya/wp-content/plugins/${PLUGIN_NAME}"
         ;;
     all)
-        deploy_to "/var/www/alpindede/wp-content/plugins/${PLUGIN_NAME}"
-        deploy_to "/var/www/estonya/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/alpindede/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/estonya/wp-content/plugins/${PLUGIN_NAME}"
         ;;
     *)
         echo "Kullanım: $0 [alpindede|estonya|all]"
