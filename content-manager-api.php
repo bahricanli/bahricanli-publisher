@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name: AlpinDede Content API
- * Description: AlpinDede içerik servisinden yazı almak için özel REST API endpoint.
- * Version: 1.0.0
+ * Plugin Name: Content Manager API
+ * Description: Content Manager servisinden WordPress'e yazı almak için REST API endpoint.
+ * Version: 1.1.0
  * Author: Bahri Meriç Canlı
  */
 
@@ -10,23 +10,22 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-// Token ayarı (WordPress admin → Ayarlar → AlpinDede API)
-define('ALPINDEDE_TOKEN_OPTION', 'alpindede_api_token');
+define('CM_TOKEN_OPTION', 'content_manager_api_token');
 
 // ─── REST API Endpoint ────────────────────────────────────────────────────────
 
 add_action('rest_api_init', function () {
-    register_rest_route('alpindede/v1', '/posts', [
+    register_rest_route('content-manager/v1', '/posts', [
         'methods'             => 'POST',
-        'callback'            => 'alpindede_create_post',
-        'permission_callback' => 'alpindede_check_token',
+        'callback'            => 'cm_create_post',
+        'permission_callback' => 'cm_check_token',
     ]);
 });
 
-function alpindede_check_token(WP_REST_Request $request): bool
+function cm_check_token(WP_REST_Request $request): bool
 {
-    $token  = get_option(ALPINDEDE_TOKEN_OPTION, '');
-    $header = $request->get_header('X-AlpinDede-Token');
+    $token  = get_option(CM_TOKEN_OPTION, '');
+    $header = $request->get_header('X-Content-Manager-Token');
 
     if (empty($token) || ! hash_equals($token, (string) $header)) {
         return false;
@@ -34,7 +33,7 @@ function alpindede_check_token(WP_REST_Request $request): bool
     return true;
 }
 
-function alpindede_create_post(WP_REST_Request $request): WP_REST_Response
+function cm_create_post(WP_REST_Request $request): WP_REST_Response
 {
     $params = $request->get_json_params();
 
@@ -96,20 +95,20 @@ function alpindede_create_post(WP_REST_Request $request): WP_REST_Response
     // Öne çıkan görsel — URL'den indir ve medya kütüphanesine ekle
     $featured_image_url = sanitize_url($params['featured_image'] ?? '');
     if ($featured_image_url) {
-        $attachment_id = alpindede_sideload_image($featured_image_url, $post_id, $title);
+        $attachment_id = cm_sideload_image($featured_image_url, $post_id, $title);
         if ($attachment_id && ! is_wp_error($attachment_id)) {
             set_post_thumbnail($post_id, $attachment_id);
         }
     }
 
     return new WP_REST_Response([
-        'post_id'   => $post_id,
-        'post_url'  => get_permalink($post_id),
-        'status'    => $status,
+        'post_id'  => $post_id,
+        'post_url' => get_permalink($post_id),
+        'status'   => $status,
     ], 201);
 }
 
-function alpindede_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
+function cm_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
 {
     require_once ABSPATH . 'wp-admin/includes/media.php';
     require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -122,49 +121,49 @@ function alpindede_sideload_image(string $url, int $post_id, string $desc): int|
 
 add_action('admin_menu', function () {
     add_options_page(
-        'AlpinDede API',
-        'AlpinDede API',
+        'Content Manager API',
+        'Content Manager API',
         'manage_options',
-        'alpindede-api',
-        'alpindede_settings_page'
+        'content-manager-api',
+        'cm_settings_page'
     );
 });
 
-function alpindede_settings_page(): void
+function cm_settings_page(): void
 {
-    if (isset($_POST['alpindede_token'])) {
-        check_admin_referer('alpindede_save_token');
-        update_option(ALPINDEDE_TOKEN_OPTION, sanitize_text_field($_POST['alpindede_token']));
+    if (isset($_POST['cm_token'])) {
+        check_admin_referer('cm_save_token');
+        update_option(CM_TOKEN_OPTION, sanitize_text_field($_POST['cm_token']));
         echo '<div class="notice notice-success"><p>Token kaydedildi.</p></div>';
     }
 
-    $token = get_option(ALPINDEDE_TOKEN_OPTION, '');
+    $token = get_option(CM_TOKEN_OPTION, '');
     ?>
     <div class="wrap">
-        <h1>AlpinDede Content API Ayarları</h1>
-        <p>Bu token, içerik servisindeki <code>WORDPRESS_PLUGIN_TOKEN</code> değeriyle eşleşmelidir.</p>
+        <h1>Content Manager API Ayarları</h1>
+        <p>Bu token, <strong>content-manager.tr</strong> servisindeki <code>WORDPRESS_PLUGIN_TOKEN</code> değeriyle eşleşmelidir.</p>
 
         <form method="post">
-            <?php wp_nonce_field('alpindede_save_token'); ?>
+            <?php wp_nonce_field('cm_save_token'); ?>
             <table class="form-table">
                 <tr>
                     <th>API Token</th>
                     <td>
-                        <input type="text" name="alpindede_token"
+                        <input type="text" name="cm_token"
                                value="<?php echo esc_attr($token); ?>"
                                class="regular-text" />
                         <button type="button" onclick="
                             const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
                             let t=''; for(let i=0;i<48;i++) t+=chars[Math.floor(Math.random()*chars.length)];
-                            document.querySelector('[name=alpindede_token]').value=t;
+                            document.querySelector('[name=cm_token]').value=t;
                         " class="button">Yeni Token Oluştur</button>
                     </td>
                 </tr>
                 <tr>
                     <th>Endpoint URL</th>
                     <td>
-                        <code><?php echo esc_url(rest_url('alpindede/v1/posts')); ?></code>
-                        <p class="description">Bu URL'yi içerik servisine girin.</p>
+                        <code><?php echo esc_url(rest_url('content-manager/v1/posts')); ?></code>
+                        <p class="description">Bu URL'yi content-manager.tr ayarlarına girin.</p>
                     </td>
                 </tr>
             </table>
