@@ -11,7 +11,7 @@
 
 set -e
 
-PLUGIN_FILE="$(dirname "$0")/content-manager-api.php"
+PLUGIN_FILE="/root/wordpress/sites/content-manager/wordpress-plugin/content-manager-api.php"
 PLUGIN_NAME="content-manager-api"
 
 deploy_to() {
