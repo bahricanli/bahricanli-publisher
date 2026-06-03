@@ -2,20 +2,17 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Content Manager API Plugin — Deploy Script
 # Kullanım:
-#   ./deploy.sh alpindede   → alpindede eklentisini kopyala
-#   ./deploy.sh estonya     → estonya eklentisini kopyala
-#   ./deploy.sh all         → her ikisine kopyala
+#   ./deploy.sh alpindede    → alpindede eklentisini kopyala
+#   ./deploy.sh estonya      → estonya eklentisini kopyala
+#   ./deploy.sh bahriinfo    → bahri.info eklentisini kopyala
+#   ./deploy.sh bahricanli   → bahricanli.tr eklentisini kopyala
+#   ./deploy.sh all          → tüm sitelere kopyala
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -e
 
 PLUGIN_FILE="$(dirname "$0")/content-manager-api.php"
 PLUGIN_NAME="content-manager-api"
-
-PATHS=(
-    "/root/wordpress/sites/alpindede/wp-content/plugins/${PLUGIN_NAME}"
-    "/root/wordpress/sites/estonya/wp-content/plugins/${PLUGIN_NAME}"
-)
 
 deploy_to() {
     local DEST="$1"
@@ -32,12 +29,20 @@ case "${1:-all}" in
     estonya)
         deploy_to "/root/wordpress/sites/estonya/wp-content/plugins/${PLUGIN_NAME}"
         ;;
+    bahriinfo)
+        deploy_to "/root/wordpress/sites/bahriinfo/wp-content/plugins/${PLUGIN_NAME}"
+        ;;
+    bahricanli)
+        deploy_to "/root/wordpress/sites/bahricanli/wp-content/plugins/${PLUGIN_NAME}"
+        ;;
     all)
         deploy_to "/root/wordpress/sites/alpindede/wp-content/plugins/${PLUGIN_NAME}"
         deploy_to "/root/wordpress/sites/estonya/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/bahriinfo/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/bahricanli/wp-content/plugins/${PLUGIN_NAME}"
         ;;
     *)
-        echo "Kullanım: $0 [alpindede|estonya|all]"
+        echo "Kullanım: $0 [alpindede|estonya|bahriinfo|bahricanli|all]"
         exit 1
         ;;
 esac
