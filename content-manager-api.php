@@ -310,6 +310,32 @@ function cm_ajax_handler(): void
     wp_send_json(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'status' => $status], 201);
 }
 
+// ─── Silme AJAX ──────────────────────────────────────────────────────────────
+
+add_action('wp_ajax_nopriv_cm_delete', 'cm_delete_handler');
+add_action('wp_ajax_cm_delete',        'cm_delete_handler');
+
+function cm_delete_handler(): void
+{
+    $token    = get_option(CM_TOKEN_OPTION, '');
+    $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
+    if (empty($token) || ! hash_equals($token, (string) $incoming)) {
+        wp_send_json(['error' => 'Unauthorized'], 403);
+    }
+
+    $post_id = (int) ($_POST['post_id'] ?? 0);
+    if (! $post_id || ! get_post($post_id)) {
+        wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
+    }
+
+    $result = wp_delete_post($post_id, true); // true = çöp kutusuna atmadan sil
+    if ($result) {
+        wp_send_json(['deleted' => true, 'post_id' => $post_id]);
+    } else {
+        wp_send_json(['error' => 'Silinemedi'], 500);
+    }
+}
+
 // ─── Görsel Düzeltme AJAX ────────────────────────────────────────────────────
 
 add_action('wp_ajax_nopriv_cm_fix_images', 'cm_fix_images_handler');
