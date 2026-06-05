@@ -175,7 +175,43 @@ function cm_sideload_image(string $url, int $post_id, string $desc): int|WP_Erro
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
 
-    return media_sideload_image($url, $post_id, $desc, 'id');
+    // WordPress'in kendi HTTP sınırlamalarını bypass et: curl ile indir
+    $tmp = cm_download_image($url);
+    if (is_wp_error($tmp)) {
+        return media_sideload_image($url, $post_id, $desc, 'id');
+    }
+
+    $file_array = [
+        'name'     => basename(parse_url($url, PHP_URL_PATH)) ?: 'image.jpg',
+        'tmp_name' => $tmp,
+    ];
+
+    $id = media_handle_sideload($file_array, $post_id, $desc);
+    @unlink($tmp);
+    return $id;
+}
+
+function cm_download_image(string $url): string|WP_Error
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; WordPress)',
+    ]);
+    $data = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (! $data || $code !== 200) {
+        return new WP_Error('download_failed', "Görsel indirilemedi: HTTP {$code}");
+    }
+
+    $tmp = tempnam(sys_get_temp_dir(), 'cm_img_') . '.jpg';
+    file_put_contents($tmp, $data);
+    return $tmp;
 }
 
 // ─── AJAX Endpoint (REST API engellendiğinde fallback) ───────────────────────
