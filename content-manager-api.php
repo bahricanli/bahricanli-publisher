@@ -29,13 +29,25 @@ add_action('rest_api_init', function () {
 
 function cm_check_token(WP_REST_Request $request): bool
 {
-    $token  = get_option(CM_TOKEN_OPTION, '');
-    $header = $request->get_header('X-Content-Manager-Token');
-
-    if (empty($token) || ! hash_equals($token, (string) $header)) {
+    $token = get_option(CM_TOKEN_OPTION, '');
+    if (empty($token)) {
         return false;
     }
-    return true;
+
+    // 1. Header'dan oku
+    $incoming = $request->get_header('X-Content-Manager-Token');
+
+    // 2. Header gelmemişse query param'dan dene
+    if (empty($incoming)) {
+        $incoming = $request->get_param('_cm_token');
+    }
+
+    // 3. JSON body'den dene
+    if (empty($incoming)) {
+        $incoming = $request->get_json_params()['_cm_token'] ?? '';
+    }
+
+    return hash_equals($token, (string) $incoming);
 }
 
 function cm_create_post(WP_REST_Request $request): WP_REST_Response
