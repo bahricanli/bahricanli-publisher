@@ -185,6 +185,13 @@ add_action('wp_ajax_cm_post',        'cm_ajax_handler');
 
 function cm_ajax_handler(): void
 {
+    // Medya fonksiyonları için gerekli admin include'ları yükle
+    if (! function_exists('media_sideload_image')) {
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+    }
+
     $token    = get_option(CM_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
 
