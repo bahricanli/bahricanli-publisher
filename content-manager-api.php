@@ -310,6 +310,85 @@ function cm_ajax_handler(): void
     wp_send_json(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'status' => $status], 201);
 }
 
+// ─── Görsel Düzeltme AJAX ────────────────────────────────────────────────────
+
+add_action('wp_ajax_nopriv_cm_fix_images', 'cm_fix_images_handler');
+add_action('wp_ajax_cm_fix_images',        'cm_fix_images_handler');
+
+function cm_fix_images_handler(): void
+{
+    if (! function_exists('media_sideload_image')) {
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+    }
+
+    $token    = get_option(CM_TOKEN_OPTION, '');
+    $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
+    if (empty($token) || ! hash_equals($token, (string) $incoming)) {
+        wp_send_json(['error' => 'Unauthorized'], 403);
+    }
+
+    $post_id = (int) ($_POST['post_id'] ?? 0);
+    $post    = get_post($post_id);
+    if (! $post) {
+        wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
+    }
+
+    $site_host = parse_url(get_site_url(), PHP_URL_HOST);
+    $fixed     = 0;
+    $errors    = [];
+
+    // 1. Öne çıkan görsel
+    $featured_url = $_POST['featured_image'] ?? '';
+    if ($featured_url && ! cm_is_local_url($featured_url, $site_host)) {
+        $att_id = cm_sideload_image($featured_url, $post_id, $post->post_title);
+        if ($att_id && ! is_wp_error($att_id)) {
+            set_post_thumbnail($post_id, $att_id);
+            $fixed++;
+        } else {
+            $errors[] = "featured: " . (is_wp_error($att_id) ? $att_id->get_error_message() : 'hata');
+        }
+    }
+
+    // 2. İçerikteki görseller
+    $content = $post->post_content;
+    $updated_content = preg_replace_callback(
+        '/<img([^>]*)\ssrc=["\']([^"\']+)["\']([^>]*)>/i',
+        function ($m) use ($post_id, $site_host, &$fixed, &$errors) {
+            $url = $m[2];
+            if (cm_is_local_url($url, $site_host)) return $m[0];
+
+            $att_id = cm_sideload_image($url, $post_id, '');
+            if ($att_id && ! is_wp_error($att_id)) {
+                $local_url = wp_get_attachment_url($att_id);
+                $fixed++;
+                return "<img{$m[1]} src=\"{$local_url}\"{$m[3]}>";
+            }
+            $errors[] = "content img: " . (is_wp_error($att_id) ? $att_id->get_error_message() : 'hata');
+            return $m[0];
+        },
+        $content
+    );
+
+    if ($updated_content !== $content) {
+        wp_update_post(['ID' => $post_id, 'post_content' => $updated_content]);
+    }
+
+    wp_send_json([
+        'post_id' => $post_id,
+        'fixed'   => $fixed,
+        'errors'  => $errors,
+    ]);
+}
+
+function cm_is_local_url(string $url, string $site_host): bool
+{
+    if (str_starts_with($url, '/')) return true;
+    $host = parse_url($url, PHP_URL_HOST);
+    return $host === $site_host || str_ends_with($host, '.' . $site_host);
+}
+
 // ─── Ayarlar Sayfası ─────────────────────────────────────────────────────────
 
 add_action('admin_menu', function () {
