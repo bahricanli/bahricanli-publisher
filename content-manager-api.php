@@ -415,6 +415,36 @@ function cm_is_local_url(string $url, string $site_host): bool
     return $host === $site_host || str_ends_with($host, '.' . $site_host);
 }
 
+// ─── Version Info ─────────────────────────────────────────────────────────────
+
+add_action('wp_ajax_nopriv_cm_version', 'cm_version_handler');
+add_action('wp_ajax_cm_version',        'cm_version_handler');
+
+function cm_version_handler(): void
+{
+    global $wp_version;
+
+    $token    = get_option(CM_TOKEN_OPTION, '');
+    $incoming = $_POST['_cm_token'] ?? $_GET['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
+    if (empty($token) || ! hash_equals($token, (string) $incoming)) {
+        wp_send_json(['error' => 'Unauthorized'], 403);
+    }
+
+    // En son WP versiyonunu wordpress.org'dan çek
+    $latest = null;
+    $response = wp_remote_get('https://api.wordpress.org/core/version-check/1.7/', ['timeout' => 10]);
+    if (! is_wp_error($response)) {
+        $data   = json_decode(wp_remote_retrieve_body($response), true);
+        $latest = $data['offers'][0]['version'] ?? null;
+    }
+
+    wp_send_json([
+        'installed' => $wp_version,
+        'latest'    => $latest,
+        'has_update' => $latest && version_compare($wp_version, $latest, '<'),
+    ]);
+}
+
 // ─── Ayarlar Sayfası ─────────────────────────────────────────────────────────
 
 add_action('admin_menu', function () {
