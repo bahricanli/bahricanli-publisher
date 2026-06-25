@@ -188,7 +188,43 @@ function cm_sideload_image(string $url, int $post_id, string $desc): int|WP_Erro
 
     $id = media_handle_sideload($file_array, $post_id, $desc);
     @unlink($tmp);
+
+    // Kaynak görsel çok büyükse orantılı küçült (tema tasarımını bozmasın)
+    if (! is_wp_error($id)) {
+        cm_resize_attachment((int) $id, 1600);
+    }
+
     return $id;
+}
+
+/**
+ * Yüklenen görselin orijinalini en fazla $maxW genişliğe orantılı küçültür
+ * ve küçük boy (thumbnail) metadatasını yeniden üretir.
+ */
+function cm_resize_attachment(int $id, int $maxW): void
+{
+    $file = get_attached_file($id);
+    if (! $file || ! file_exists($file)) {
+        return;
+    }
+
+    $editor = wp_get_image_editor($file);
+    if (is_wp_error($editor)) {
+        return;
+    }
+
+    $size = $editor->get_size();
+    if (empty($size['width']) || $size['width'] <= $maxW) {
+        return; // zaten yeterince küçük
+    }
+
+    $editor->resize($maxW, 9999, false); // orantılı, kırpma yok
+    $saved = $editor->save($file);
+
+    if (! is_wp_error($saved)) {
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        wp_update_attachment_metadata($id, wp_generate_attachment_metadata($id, $file));
+    }
 }
 
 function cm_download_image(string $url): string|WP_Error
