@@ -35,11 +35,19 @@ case "${1:-all}" in
     bahricanli)
         deploy_to "/root/wordpress/sites/bahricanli/wp-content/plugins/${PLUGIN_NAME}"
         ;;
+    avustralya)
+        deploy_to "/root/wordpress/sites/avustralya/wp-content/plugins/${PLUGIN_NAME}"
+        ;;
+    ubuntu)
+        deploy_to "/root/wordpress/sites/ubuntu/wp-content/plugins/${PLUGIN_NAME}"
+        ;;
     all)
         deploy_to "/root/wordpress/sites/alpindede/wp-content/plugins/${PLUGIN_NAME}"
         deploy_to "/root/wordpress/sites/estonya/wp-content/plugins/${PLUGIN_NAME}"
         deploy_to "/root/wordpress/sites/bahriinfo/wp-content/plugins/${PLUGIN_NAME}"
         deploy_to "/root/wordpress/sites/bahricanli/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/avustralya/wp-content/plugins/${PLUGIN_NAME}"
+        deploy_to "/root/wordpress/sites/ubuntu/wp-content/plugins/${PLUGIN_NAME}"
         ;;
     *)
         echo "Kullanım: $0 [alpindede|estonya|bahriinfo|bahricanli|all]"
