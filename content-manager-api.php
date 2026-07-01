@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Content Manager API
  * Description: Content Manager servisinden WordPress'e yazı almak için REST API endpoint.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Bahri Meriç Canlı
  */
 
