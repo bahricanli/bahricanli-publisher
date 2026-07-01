@@ -175,14 +175,23 @@ function cm_sideload_image(string $url, int $post_id, string $desc): int|WP_Erro
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
 
+    wp_set_current_user(1); // nopriv AJAX'ta medya yükleyebilmek için admin yetkisi
+
     // WordPress'in kendi HTTP sınırlamalarını bypass et: curl ile indir
     $tmp = cm_download_image($url);
     if (is_wp_error($tmp)) {
         return media_sideload_image($url, $post_id, $desc, 'id');
     }
 
+    $basename = basename(parse_url($url, PHP_URL_PATH)) ?: 'image';
+    // Uzantı yoksa MIME'den belirle (Unsplash gibi uzantısız URL'ler için)
+    if (! pathinfo($basename, PATHINFO_EXTENSION)) {
+        $mime_type = mime_content_type($tmp);
+        $ext_map   = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        $basename .= '.' . ($ext_map[$mime_type] ?? 'jpg');
+    }
     $file_array = [
-        'name'     => basename(parse_url($url, PHP_URL_PATH)) ?: 'image.jpg',
+        'name'     => $basename,
         'tmp_name' => $tmp,
     ];
 
