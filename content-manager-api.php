@@ -1,9 +1,16 @@
 <?php
 /**
  * Plugin Name: Content Manager API
- * Description: Content Manager servisinden WordPress'e yazı almak için REST API endpoint.
- * Version: 1.2.0
- * Author: Bahri Meriç Canlı
+ * Plugin URI:  https://github.com/bahricanli/content-manager
+ * Description: Connects your WordPress site to the Content Manager app — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories and tags.
+ * Version:     1.2.0
+ * Author:      Bahri Meriç Canlı
+ * Author URI:  https://www.bahricanli.tr
+ * License:     GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: content-manager-api
+ * Requires at least: 6.0
+ * Requires PHP:      8.1
  */
 
 if (! defined('ABSPATH')) {
