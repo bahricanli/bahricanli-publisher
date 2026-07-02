@@ -1,14 +1,14 @@
 <?php
 /**
- * Plugin Name: Content Manager API
- * Plugin URI:  https://github.com/bahricanli/content-manager
- * Description: Connects your WordPress site to the Content Manager app — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories and tags.
+ * Plugin Name: Content Manager TR
+ * Plugin URI:  https://content-manager.tr
+ * Description: Connects your WordPress site to the Content Manager TR app — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories and tags.
  * Version:     1.2.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: content-manager-api
+ * Text Domain: content-manager-tr
  * Requires at least: 6.0
  * Requires PHP:      8.1
  */
@@ -17,39 +17,36 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('CM_TOKEN_OPTION', 'content_manager_api_token');
+define('CMTR_TOKEN_OPTION', 'content_manager_tr_token');
 
 // ─── REST API Endpoint ────────────────────────────────────────────────────────
 
 add_action('rest_api_init', function () {
     register_rest_route('content-manager/v1', '/posts', [
         'methods'             => 'POST',
-        'callback'            => 'cm_create_post',
-        'permission_callback' => 'cm_check_token',
+        'callback'            => 'cmtr_create_post',
+        'permission_callback' => 'cmtr_check_token',
     ]);
     register_rest_route('content-manager/v1', '/posts/(?P<id>\d+)', [
         'methods'             => 'PUT',
-        'callback'            => 'cm_update_post',
-        'permission_callback' => 'cm_check_token',
+        'callback'            => 'cmtr_update_post',
+        'permission_callback' => 'cmtr_check_token',
     ]);
 });
 
-function cm_check_token(WP_REST_Request $request): bool
+function cmtr_check_token(WP_REST_Request $request): bool
 {
-    $token = get_option(CM_TOKEN_OPTION, '');
+    $token = get_option(CMTR_TOKEN_OPTION, '');
     if (empty($token)) {
         return false;
     }
 
-    // 1. Header'dan oku
     $incoming = $request->get_header('X-Content-Manager-Token');
 
-    // 2. Header gelmemişse query param'dan dene
     if (empty($incoming)) {
         $incoming = $request->get_param('_cm_token');
     }
 
-    // 3. JSON body'den dene
     if (empty($incoming)) {
         $incoming = $request->get_json_params()['_cm_token'] ?? '';
     }
@@ -57,7 +54,7 @@ function cm_check_token(WP_REST_Request $request): bool
     return hash_equals($token, (string) $incoming);
 }
 
-function cm_create_post(WP_REST_Request $request): WP_REST_Response
+function cmtr_create_post(WP_REST_Request $request): WP_REST_Response
 {
     $params = $request->get_json_params();
 
@@ -73,7 +70,6 @@ function cm_create_post(WP_REST_Request $request): WP_REST_Response
         return new WP_REST_Response(['error' => 'title ve content zorunlu'], 400);
     }
 
-    // Kategorileri ID'ye çevir (yoksa oluştur)
     $category_ids = [];
     foreach ((array) ($params['categories'] ?? []) as $cat_name) {
         $cat_name = sanitize_text_field($cat_name);
@@ -86,7 +82,6 @@ function cm_create_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
-    // Etiketleri ID'ye çevir (yoksa oluştur)
     $tag_ids = [];
     foreach ((array) ($params['tags'] ?? []) as $tag_name) {
         $tag_name = sanitize_text_field($tag_name);
@@ -99,7 +94,7 @@ function cm_create_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
-    $post_data = [
+    $post_id = wp_insert_post([
         'post_title'    => $title,
         'post_content'  => $content,
         'post_excerpt'  => $excerpt,
@@ -108,18 +103,15 @@ function cm_create_post(WP_REST_Request $request): WP_REST_Response
         'post_author'   => 1,
         'post_category' => $category_ids ?: [1],
         'tags_input'    => $tag_ids,
-    ];
-
-    $post_id = wp_insert_post($post_data, true);
+    ], true);
 
     if (is_wp_error($post_id)) {
         return new WP_REST_Response(['error' => $post_id->get_error_message()], 500);
     }
 
-    // Öne çıkan görsel — URL'den indir ve medya kütüphanesine ekle
     $featured_image_url = sanitize_url($params['featured_image'] ?? '');
     if ($featured_image_url) {
-        $attachment_id = cm_sideload_image($featured_image_url, $post_id, $title);
+        $attachment_id = cmtr_sideload_image($featured_image_url, $post_id, $title);
         if ($attachment_id && ! is_wp_error($attachment_id)) {
             set_post_thumbnail($post_id, $attachment_id);
         }
@@ -132,7 +124,7 @@ function cm_create_post(WP_REST_Request $request): WP_REST_Response
     ], 201);
 }
 
-function cm_update_post(WP_REST_Request $request): WP_REST_Response
+function cmtr_update_post(WP_REST_Request $request): WP_REST_Response
 {
     $post_id = (int) $request->get_param('id');
     $params  = $request->get_json_params();
@@ -160,10 +152,9 @@ function cm_update_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
-    // Öne çıkan görsel güncelle
     if (! empty($params['featured_image'])) {
         $title         = get_the_title($post_id);
-        $attachment_id = cm_sideload_image($params['featured_image'], $post_id, $title);
+        $attachment_id = cmtr_sideload_image(sanitize_url($params['featured_image']), $post_id, $title);
         if ($attachment_id && ! is_wp_error($attachment_id)) {
             set_post_thumbnail($post_id, $attachment_id);
         }
@@ -176,17 +167,32 @@ function cm_update_post(WP_REST_Request $request): WP_REST_Response
     ], 200);
 }
 
-function cm_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
+// Grants upload_files capability temporarily for token-authenticated requests.
+function cmtr_grant_upload_cap(array $allcaps, array $caps): array
+{
+    if (in_array('upload_files', $caps, true)) {
+        $allcaps['upload_files'] = true;
+    }
+    return $allcaps;
+}
+
+function cmtr_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
 {
     require_once ABSPATH . 'wp-admin/includes/media.php';
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
 
-    wp_set_current_user(1); // nopriv AJAX'ta medya yükleyebilmek için admin yetkisi
+    $filter_added = false;
+    if (! current_user_can('upload_files')) {
+        add_filter('user_has_cap', 'cmtr_grant_upload_cap', 10, 2);
+        $filter_added = true;
+    }
 
-    // WordPress'in kendi HTTP sınırlamalarını bypass et: curl ile indir
-    $tmp = cm_download_image($url);
+    $tmp = cmtr_download_image($url);
     if (is_wp_error($tmp)) {
+        if ($filter_added) {
+            remove_filter('user_has_cap', 'cmtr_grant_upload_cap', 10);
+        }
         return media_sideload_image($url, $post_id, $desc, 'id');
     }
 
@@ -205,19 +211,18 @@ function cm_sideload_image(string $url, int $post_id, string $desc): int|WP_Erro
     $id = media_handle_sideload($file_array, $post_id, $desc);
     @unlink($tmp);
 
-    // Kaynak görsel çok büyükse orantılı küçült (tema tasarımını bozmasın)
+    if ($filter_added) {
+        remove_filter('user_has_cap', 'cmtr_grant_upload_cap', 10);
+    }
+
     if (! is_wp_error($id)) {
-        cm_resize_attachment((int) $id, 1600);
+        cmtr_resize_attachment((int) $id, 1600);
     }
 
     return $id;
 }
 
-/**
- * Yüklenen görselin orijinalini en fazla $maxW genişliğe orantılı küçültür
- * ve küçük boy (thumbnail) metadatasını yeniden üretir.
- */
-function cm_resize_attachment(int $id, int $maxW): void
+function cmtr_resize_attachment(int $id, int $maxW): void
 {
     $file = get_attached_file($id);
     if (! $file || ! file_exists($file)) {
@@ -231,10 +236,10 @@ function cm_resize_attachment(int $id, int $maxW): void
 
     $size = $editor->get_size();
     if (empty($size['width']) || $size['width'] <= $maxW) {
-        return; // zaten yeterince küçük
+        return;
     }
 
-    $editor->resize($maxW, 9999, false); // orantılı, kırpma yok
+    $editor->resize($maxW, 9999, false);
     $saved = $editor->save($file);
 
     if (! is_wp_error($saved)) {
@@ -243,7 +248,7 @@ function cm_resize_attachment(int $id, int $maxW): void
     }
 }
 
-function cm_download_image(string $url): string|WP_Error
+function cmtr_download_image(string $url): string|WP_Error
 {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -261,36 +266,34 @@ function cm_download_image(string $url): string|WP_Error
         return new WP_Error('download_failed', "Görsel indirilemedi: HTTP {$code}");
     }
 
-    $tmp = tempnam(sys_get_temp_dir(), 'cm_img_') . '.jpg';
+    $tmp = tempnam(sys_get_temp_dir(), 'cmtr_img_') . '.jpg';
     file_put_contents($tmp, $data);
     return $tmp;
 }
 
 // ─── AJAX Endpoint (REST API engellendiğinde fallback) ───────────────────────
 
-add_action('wp_ajax_nopriv_cm_post', 'cm_ajax_handler');
-add_action('wp_ajax_cm_post',        'cm_ajax_handler');
+add_action('wp_ajax_nopriv_cmtr_post', 'cmtr_ajax_handler');
+add_action('wp_ajax_cmtr_post',        'cmtr_ajax_handler');
 
-function cm_ajax_handler(): void
+function cmtr_ajax_handler(): void
 {
-    // Medya fonksiyonları için gerekli admin include'ları yükle
     if (! function_exists('media_sideload_image')) {
         require_once ABSPATH . 'wp-admin/includes/media.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
     }
 
-    $token    = get_option(CM_TOKEN_OPTION, '');
+    $token    = get_option(CMTR_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
 
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
 
-    $action = $_POST['cm_action'] ?? 'create';
+    $action = sanitize_key($_POST['cm_action'] ?? 'create');
 
     if ($action === 'update' && ! empty($_POST['post_id'])) {
-        // Güncelle
         $post_id     = (int) $_POST['post_id'];
         $update_data = ['ID' => $post_id];
         if (! empty($_POST['title']))   $update_data['post_title']   = sanitize_text_field($_POST['title']);
@@ -303,14 +306,13 @@ function cm_ajax_handler(): void
         }
 
         if (! empty($_POST['featured_image'])) {
-            $att = cm_sideload_image(sanitize_url($_POST['featured_image']), $post_id, get_the_title($post_id));
+            $att = cmtr_sideload_image(sanitize_url(wp_unslash($_POST['featured_image'])), $post_id, get_the_title($post_id));
             if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
         }
 
         wp_send_json(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'updated' => true]);
     }
 
-    // Yeni yazı oluştur
     $title   = sanitize_text_field($_POST['title']   ?? '');
     $content = wp_kses_post(wp_unslash($_POST['content'] ?? ''));
     $excerpt = sanitize_textarea_field($_POST['excerpt'] ?? '');
@@ -322,7 +324,6 @@ function cm_ajax_handler(): void
         wp_send_json(['error' => 'title ve content zorunlu'], 400);
     }
 
-    // Kategoriler
     $category_ids = [];
     foreach (json_decode(wp_unslash($_POST['categories'] ?? '[]'), true) ?: [] as $cat_name) {
         $cat_name = sanitize_text_field($cat_name);
@@ -330,7 +331,6 @@ function cm_ajax_handler(): void
         if (! is_wp_error($term)) $category_ids[] = (int)(is_array($term) ? $term['term_id'] : $term);
     }
 
-    // Etiketler
     $tag_ids = [];
     foreach (json_decode(wp_unslash($_POST['tags'] ?? '[]'), true) ?: [] as $tag_name) {
         $tag_name = sanitize_text_field($tag_name);
@@ -353,9 +353,9 @@ function cm_ajax_handler(): void
         wp_send_json(['error' => $post_id->get_error_message()], 500);
     }
 
-    $featured = sanitize_url($_POST['featured_image'] ?? '');
+    $featured = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
     if ($featured) {
-        $att = cm_sideload_image($featured, $post_id, $title);
+        $att = cmtr_sideload_image($featured, $post_id, $title);
         if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
     }
 
@@ -364,12 +364,12 @@ function cm_ajax_handler(): void
 
 // ─── Silme AJAX ──────────────────────────────────────────────────────────────
 
-add_action('wp_ajax_nopriv_cm_delete', 'cm_delete_handler');
-add_action('wp_ajax_cm_delete',        'cm_delete_handler');
+add_action('wp_ajax_nopriv_cmtr_delete', 'cmtr_delete_handler');
+add_action('wp_ajax_cmtr_delete',        'cmtr_delete_handler');
 
-function cm_delete_handler(): void
+function cmtr_delete_handler(): void
 {
-    $token    = get_option(CM_TOKEN_OPTION, '');
+    $token    = get_option(CMTR_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
@@ -380,7 +380,7 @@ function cm_delete_handler(): void
         wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
     }
 
-    $result = wp_delete_post($post_id, true); // true = çöp kutusuna atmadan sil
+    $result = wp_delete_post($post_id, true);
     if ($result) {
         wp_send_json(['deleted' => true, 'post_id' => $post_id]);
     } else {
@@ -390,10 +390,10 @@ function cm_delete_handler(): void
 
 // ─── Görsel Düzeltme AJAX ────────────────────────────────────────────────────
 
-add_action('wp_ajax_nopriv_cm_fix_images', 'cm_fix_images_handler');
-add_action('wp_ajax_cm_fix_images',        'cm_fix_images_handler');
+add_action('wp_ajax_nopriv_cmtr_fix_images', 'cmtr_fix_images_handler');
+add_action('wp_ajax_cmtr_fix_images',        'cmtr_fix_images_handler');
 
-function cm_fix_images_handler(): void
+function cmtr_fix_images_handler(): void
 {
     if (! function_exists('media_sideload_image')) {
         require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -401,7 +401,7 @@ function cm_fix_images_handler(): void
         require_once ABSPATH . 'wp-admin/includes/image.php';
     }
 
-    $token    = get_option(CM_TOKEN_OPTION, '');
+    $token    = get_option(CMTR_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
@@ -417,10 +417,9 @@ function cm_fix_images_handler(): void
     $fixed     = 0;
     $errors    = [];
 
-    // 1. Öne çıkan görsel
-    $featured_url = $_POST['featured_image'] ?? '';
-    if ($featured_url && ! cm_is_local_url($featured_url, $site_host)) {
-        $att_id = cm_sideload_image($featured_url, $post_id, $post->post_title);
+    $featured_url = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
+    if ($featured_url && ! cmtr_is_local_url($featured_url, $site_host)) {
+        $att_id = cmtr_sideload_image($featured_url, $post_id, $post->post_title);
         if ($att_id && ! is_wp_error($att_id)) {
             set_post_thumbnail($post_id, $att_id);
             $fixed++;
@@ -429,15 +428,14 @@ function cm_fix_images_handler(): void
         }
     }
 
-    // 2. İçerikteki görseller
     $content = $post->post_content;
     $updated_content = preg_replace_callback(
         '/<img([^>]*)\ssrc=["\']([^"\']+)["\']([^>]*)>/i',
         function ($m) use ($post_id, $site_host, &$fixed, &$errors) {
             $url = $m[2];
-            if (cm_is_local_url($url, $site_host)) return $m[0];
+            if (cmtr_is_local_url($url, $site_host)) return $m[0];
 
-            $att_id = cm_sideload_image($url, $post_id, '');
+            $att_id = cmtr_sideload_image($url, $post_id, '');
             if ($att_id && ! is_wp_error($att_id)) {
                 $local_url = wp_get_attachment_url($att_id);
                 $fixed++;
@@ -460,7 +458,7 @@ function cm_fix_images_handler(): void
     ]);
 }
 
-function cm_is_local_url(string $url, string $site_host): bool
+function cmtr_is_local_url(string $url, string $site_host): bool
 {
     if (str_starts_with($url, '/')) return true;
     $host = parse_url($url, PHP_URL_HOST);
@@ -469,21 +467,21 @@ function cm_is_local_url(string $url, string $site_host): bool
 
 // ─── Version Info ─────────────────────────────────────────────────────────────
 
-add_action('wp_ajax_nopriv_cm_version', 'cm_version_handler');
-add_action('wp_ajax_cm_version',        'cm_version_handler');
+add_action('wp_ajax_nopriv_cmtr_version', 'cmtr_version_handler');
+add_action('wp_ajax_cmtr_version',        'cmtr_version_handler');
 
-function cm_version_handler(): void
+function cmtr_version_handler(): void
 {
     global $wp_version;
 
-    $token    = get_option(CM_TOKEN_OPTION, '');
+    $token    = get_option(CMTR_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_GET['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
 
-    // En son WP versiyonunu wordpress.org'dan çek
-    $latest = null;
+    // En son WP versiyonunu api.wordpress.org'dan çek (bkz. readme.txt — External Services)
+    $latest   = null;
     $response = wp_remote_get('https://api.wordpress.org/core/version-check/1.7/', ['timeout' => 10]);
     if (! is_wp_error($response)) {
         $data   = json_decode(wp_remote_retrieve_body($response), true);
@@ -491,8 +489,8 @@ function cm_version_handler(): void
     }
 
     wp_send_json([
-        'installed' => $wp_version,
-        'latest'    => $latest,
+        'installed'  => $wp_version,
+        'latest'     => $latest,
         'has_update' => $latest && version_compare($wp_version, $latest, '<'),
     ]);
 }
@@ -501,41 +499,41 @@ function cm_version_handler(): void
 
 add_action('admin_menu', function () {
     add_options_page(
-        'Content Manager API',
-        'Content Manager API',
+        'Content Manager TR',
+        'Content Manager TR',
         'manage_options',
-        'content-manager-api',
-        'cm_settings_page'
+        'content-manager-tr',
+        'cmtr_settings_page'
     );
 });
 
-function cm_settings_page(): void
+function cmtr_settings_page(): void
 {
-    if (isset($_POST['cm_token'])) {
-        check_admin_referer('cm_save_token');
-        update_option(CM_TOKEN_OPTION, sanitize_text_field($_POST['cm_token']));
+    if (isset($_POST['cmtr_token'])) {
+        check_admin_referer('cmtr_save_token');
+        update_option(CMTR_TOKEN_OPTION, sanitize_text_field(wp_unslash($_POST['cmtr_token'])));
         echo '<div class="notice notice-success"><p>Token kaydedildi.</p></div>';
     }
 
-    $token = get_option(CM_TOKEN_OPTION, '');
+    $token = get_option(CMTR_TOKEN_OPTION, '');
     ?>
     <div class="wrap">
-        <h1>Content Manager API Ayarları</h1>
+        <h1>Content Manager TR Ayarları</h1>
         <p>Bu token, <strong>content-manager.tr</strong> servisindeki <code>WORDPRESS_PLUGIN_TOKEN</code> değeriyle eşleşmelidir.</p>
 
         <form method="post">
-            <?php wp_nonce_field('cm_save_token'); ?>
+            <?php wp_nonce_field('cmtr_save_token'); ?>
             <table class="form-table">
                 <tr>
                     <th>API Token</th>
                     <td>
-                        <input type="text" name="cm_token"
+                        <input type="text" name="cmtr_token"
                                value="<?php echo esc_attr($token); ?>"
                                class="regular-text" />
                         <button type="button" onclick="
                             const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
                             let t=''; for(let i=0;i<48;i++) t+=chars[Math.floor(Math.random()*chars.length)];
-                            document.querySelector('[name=cm_token]').value=t;
+                            document.querySelector('[name=cmtr_token]').value=t;
                         " class="button">Yeni Token Oluştur</button>
                     </td>
                 </tr>
