@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories and tags. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.3.0
+ * Version:     1.3.1
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -276,6 +276,44 @@ function bcp_download_image(string $url): string|WP_Error
 add_action('wp_ajax_nopriv_bcp_post', 'bcp_ajax_handler');
 add_action('wp_ajax_bcp_post',        'bcp_ajax_handler');
 
+/**
+ * JSON yanıtını istemciye hemen gönderir; mümkünse (PHP-FPM) bağlantıyı kapatıp
+ * script'in arka planda çalışmaya devam etmesini sağlar.
+ *
+ * Neden gerekli: wp_insert_post()/wp_update_post() hızlı tamamlanıyor ama ardından
+ * çalışan bcp_sideload_image() (görsel indirme + boyutlandırma) yavaş olabiliyor.
+ * Yanıt görsel işlemi bitene kadar gecikirse content-manager'ın 45sn HTTP timeout'u
+ * dolup post'u "failed" (wp_post_id=null) işaretliyordu; bu da aynı yazının bir
+ * sonraki cron çalışmasında tekrar gönderilip WordPress'te mükerrer post oluşmasına
+ * yol açıyordu. Artık post_id, görsel adımı beklenmeden garanti şekilde dönüyor.
+ */
+function bcp_respond_now(array $data, int $status = 200): void
+{
+    if (! headers_sent()) {
+        status_header($status);
+        header('Content-Type: application/json; charset=' . get_option('blog_charset'));
+        $body = wp_json_encode($data);
+        header('Content-Length: ' . strlen($body));
+        header('Connection: close');
+        echo $body;
+    } else {
+        echo wp_json_encode($data);
+    }
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        flush();
+    }
+
+    // İstemci bağlantıyı kapatsa/timeout olsa bile arka plandaki görsel işlemi tamamlansın.
+    ignore_user_abort(true);
+    @set_time_limit(60);
+}
+
 function bcp_ajax_handler(): void
 {
     if (! function_exists('media_sideload_image')) {
@@ -305,12 +343,15 @@ function bcp_ajax_handler(): void
             wp_send_json(['error' => $result->get_error_message()], 500);
         }
 
+        // Güncelleme tamamlandı — yanıtı hemen gönder, görsel işlemi arkadan devam etsin.
+        bcp_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'updated' => true]);
+
         if (! empty($_POST['featured_image'])) {
             $att = bcp_sideload_image(sanitize_url(wp_unslash($_POST['featured_image'])), $post_id, get_the_title($post_id));
             if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
         }
 
-        wp_send_json(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'updated' => true]);
+        exit;
     }
 
     $title   = sanitize_text_field($_POST['title']   ?? '');
@@ -353,13 +394,19 @@ function bcp_ajax_handler(): void
         wp_send_json(['error' => $post_id->get_error_message()], 500);
     }
 
+    // Yazı oluşturuldu — post_id burada kesinleşti, yanıtı hemen gönder. Görsel indirme/
+    // boyutlandırma adımı yavaş olabildiğinden önce burada dönülmezse content-manager
+    // zaman aşımına düşüp aynı yazıyı tekrar gönderiyor, WordPress'te mükerrer post
+    // oluşuyordu.
+    bcp_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'status' => $status], 201);
+
     $featured = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
     if ($featured) {
         $att = bcp_sideload_image($featured, $post_id, $title);
         if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
     }
 
-    wp_send_json(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'status' => $status], 201);
+    exit;
 }
 
 // ─── Silme AJAX ──────────────────────────────────────────────────────────────
