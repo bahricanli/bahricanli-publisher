@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.4.0
+Stable tag:        1.5.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,12 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.5.0 =
+* Fix: All internal function names, defines and the AJAX action prefix renamed from the too-short
+  `bcp_` to the unique `bahrpu_` prefix, per WordPress.org Plugin Review feedback (naming collisions).
+* Fix: Removed direct `curl_*` usage for downloading remote images — now uses the WordPress HTTP API
+  (`wp_remote_get`), per WordPress.org Plugin Review feedback.
 
 = 1.4.0 =
 * Add: "Varsayılan Yazar" (Default Author) setting on the settings page — choose which WordPress user

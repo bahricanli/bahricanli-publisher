@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.4.0
+ * Version:     1.5.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -17,21 +17,21 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('BCP_TOKEN_OPTION', 'bahricanli_publisher_token');
-define('BCP_AUTHOR_OPTION', 'bahricanli_publisher_default_author');
+define('BAHRPU_TOKEN_OPTION', 'bahricanli_publisher_token');
+define('BAHRPU_AUTHOR_OPTION', 'bahricanli_publisher_default_author');
 
 // ─── REST API Endpoint ────────────────────────────────────────────────────────
 
 add_action('rest_api_init', function () {
     register_rest_route('bahricanli-publisher/v1', '/posts', [
         'methods'             => 'POST',
-        'callback'            => 'bcp_create_post',
-        'permission_callback' => 'bcp_check_token',
+        'callback'            => 'bahrpu_create_post',
+        'permission_callback' => 'bahrpu_check_token',
     ]);
     register_rest_route('bahricanli-publisher/v1', '/posts/(?P<id>\d+)', [
         'methods'             => 'PUT',
-        'callback'            => 'bcp_update_post',
-        'permission_callback' => 'bcp_check_token',
+        'callback'            => 'bahrpu_update_post',
+        'permission_callback' => 'bahrpu_check_token',
     ]);
 });
 
@@ -41,7 +41,7 @@ add_action('rest_api_init', function () {
  *
  * @return array<int, array{id:int,name:string}>
  */
-function bcp_get_authorable_users(): array
+function bahrpu_get_authorable_users(): array
 {
     $users = get_users([
         'capability' => ['edit_posts'],
@@ -66,18 +66,18 @@ function bcp_get_authorable_users(): array
  * Ayarlar sayfasında bir "Varsayılan Yazar" seçilmişse ve o kullanıcı hâlâ
  * yazı yazabiliyorsa onu kullanır; aksi halde WordPress'in ilk kullanıcısına (1) düşer.
  */
-function bcp_resolve_author_id(): int
+function bahrpu_resolve_author_id(): int
 {
-    $author_id = (int) get_option(BCP_AUTHOR_OPTION, 0);
+    $author_id = (int) get_option(BAHRPU_AUTHOR_OPTION, 0);
     if ($author_id > 0 && user_can($author_id, 'edit_posts')) {
         return $author_id;
     }
     return 1;
 }
 
-function bcp_check_token(WP_REST_Request $request): bool
+function bahrpu_check_token(WP_REST_Request $request): bool
 {
-    $token = get_option(BCP_TOKEN_OPTION, '');
+    $token = get_option(BAHRPU_TOKEN_OPTION, '');
     if (empty($token)) {
         return false;
     }
@@ -95,7 +95,7 @@ function bcp_check_token(WP_REST_Request $request): bool
     return hash_equals($token, (string) $incoming);
 }
 
-function bcp_create_post(WP_REST_Request $request): WP_REST_Response
+function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
 {
     $params = $request->get_json_params();
 
@@ -141,7 +141,7 @@ function bcp_create_post(WP_REST_Request $request): WP_REST_Response
         'post_excerpt'  => $excerpt,
         'post_name'     => $slug,
         'post_status'   => $status,
-        'post_author'   => bcp_resolve_author_id(),
+        'post_author'   => bahrpu_resolve_author_id(),
         'post_category' => $category_ids ?: [1],
         'tags_input'    => $tag_ids,
     ], true);
@@ -152,7 +152,7 @@ function bcp_create_post(WP_REST_Request $request): WP_REST_Response
 
     $featured_image_url = sanitize_url($params['featured_image'] ?? '');
     if ($featured_image_url) {
-        $attachment_id = bcp_sideload_image($featured_image_url, $post_id, $title);
+        $attachment_id = bahrpu_sideload_image($featured_image_url, $post_id, $title);
         if ($attachment_id && ! is_wp_error($attachment_id)) {
             set_post_thumbnail($post_id, $attachment_id);
         }
@@ -165,7 +165,7 @@ function bcp_create_post(WP_REST_Request $request): WP_REST_Response
     ], 201);
 }
 
-function bcp_update_post(WP_REST_Request $request): WP_REST_Response
+function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
 {
     $post_id = (int) $request->get_param('id');
     $params  = $request->get_json_params();
@@ -195,7 +195,7 @@ function bcp_update_post(WP_REST_Request $request): WP_REST_Response
 
     if (! empty($params['featured_image'])) {
         $title         = get_the_title($post_id);
-        $attachment_id = bcp_sideload_image(sanitize_url($params['featured_image']), $post_id, $title);
+        $attachment_id = bahrpu_sideload_image(sanitize_url($params['featured_image']), $post_id, $title);
         if ($attachment_id && ! is_wp_error($attachment_id)) {
             set_post_thumbnail($post_id, $attachment_id);
         }
@@ -209,7 +209,7 @@ function bcp_update_post(WP_REST_Request $request): WP_REST_Response
 }
 
 // Grants upload_files capability temporarily for token-authenticated requests.
-function bcp_grant_upload_cap(array $allcaps, array $caps): array
+function bahrpu_grant_upload_cap(array $allcaps, array $caps): array
 {
     if (in_array('upload_files', $caps, true)) {
         $allcaps['upload_files'] = true;
@@ -217,7 +217,7 @@ function bcp_grant_upload_cap(array $allcaps, array $caps): array
     return $allcaps;
 }
 
-function bcp_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
+function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
 {
     require_once ABSPATH . 'wp-admin/includes/media.php';
     require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -225,14 +225,14 @@ function bcp_sideload_image(string $url, int $post_id, string $desc): int|WP_Err
 
     $filter_added = false;
     if (! current_user_can('upload_files')) {
-        add_filter('user_has_cap', 'bcp_grant_upload_cap', 10, 2);
+        add_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10, 2);
         $filter_added = true;
     }
 
-    $tmp = bcp_download_image($url);
+    $tmp = bahrpu_download_image($url);
     if (is_wp_error($tmp)) {
         if ($filter_added) {
-            remove_filter('user_has_cap', 'bcp_grant_upload_cap', 10);
+            remove_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10);
         }
         return media_sideload_image($url, $post_id, $desc, 'id');
     }
@@ -253,17 +253,17 @@ function bcp_sideload_image(string $url, int $post_id, string $desc): int|WP_Err
     @unlink($tmp);
 
     if ($filter_added) {
-        remove_filter('user_has_cap', 'bcp_grant_upload_cap', 10);
+        remove_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10);
     }
 
     if (! is_wp_error($id)) {
-        bcp_resize_attachment((int) $id, 1600);
+        bahrpu_resize_attachment((int) $id, 1600);
     }
 
     return $id;
 }
 
-function bcp_resize_attachment(int $id, int $maxW): void
+function bahrpu_resize_attachment(int $id, int $maxW): void
 {
     $file = get_attached_file($id);
     if (! $file || ! file_exists($file)) {
@@ -289,46 +289,54 @@ function bcp_resize_attachment(int $id, int $maxW): void
     }
 }
 
-function bcp_download_image(string $url): string|WP_Error
+/**
+ * Görseli WordPress'in HTTP API'si (wp_remote_get) ile indirir.
+ * Not: Daha önce doğrudan curl_* fonksiyonları kullanılıyordu; WordPress.org
+ * eklenti incelemesi gereği yerel curl çağrıları kaldırılıp çekirdek HTTP API'ye
+ * geçildi (bkz. https://developer.wordpress.org/plugins/http-api/).
+ */
+function bahrpu_download_image(string $url): string|WP_Error
 {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; WordPress)',
+    $response = wp_remote_get($url, [
+        'timeout'     => 30,
+        'redirection' => 5,
+        'sslverify'   => true,
+        'user-agent'  => 'Mozilla/5.0 (compatible; WordPress)',
     ]);
-    $data = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+
+    if (is_wp_error($response)) {
+        return $response;
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    $data = wp_remote_retrieve_body($response);
 
     if (! $data || $code !== 200) {
         return new WP_Error('download_failed', "Görsel indirilemedi: HTTP {$code}");
     }
 
-    $tmp = tempnam(sys_get_temp_dir(), 'bcp_img_') . '.jpg';
+    $tmp = tempnam(sys_get_temp_dir(), 'bahrpu_img_') . '.jpg';
     file_put_contents($tmp, $data);
     return $tmp;
 }
 
 // ─── AJAX Endpoint (REST API engellendiğinde fallback) ───────────────────────
 
-add_action('wp_ajax_nopriv_bcp_post', 'bcp_ajax_handler');
-add_action('wp_ajax_bcp_post',        'bcp_ajax_handler');
+add_action('wp_ajax_nopriv_bahrpu_post', 'bahrpu_ajax_handler');
+add_action('wp_ajax_bahrpu_post',        'bahrpu_ajax_handler');
 
 /**
  * JSON yanıtını istemciye hemen gönderir; mümkünse (PHP-FPM) bağlantıyı kapatıp
  * script'in arka planda çalışmaya devam etmesini sağlar.
  *
  * Neden gerekli: wp_insert_post()/wp_update_post() hızlı tamamlanıyor ama ardından
- * çalışan bcp_sideload_image() (görsel indirme + boyutlandırma) yavaş olabiliyor.
+ * çalışan bahrpu_sideload_image() (görsel indirme + boyutlandırma) yavaş olabiliyor.
  * Yanıt görsel işlemi bitene kadar gecikirse content-manager'ın 45sn HTTP timeout'u
  * dolup post'u "failed" (wp_post_id=null) işaretliyordu; bu da aynı yazının bir
  * sonraki cron çalışmasında tekrar gönderilip WordPress'te mükerrer post oluşmasına
  * yol açıyordu. Artık post_id, görsel adımı beklenmeden garanti şekilde dönüyor.
  */
-function bcp_respond_now(array $data, int $status = 200): void
+function bahrpu_respond_now(array $data, int $status = 200): void
 {
     if (! headers_sent()) {
         status_header($status);
@@ -355,7 +363,7 @@ function bcp_respond_now(array $data, int $status = 200): void
     @set_time_limit(60);
 }
 
-function bcp_ajax_handler(): void
+function bahrpu_ajax_handler(): void
 {
     if (! function_exists('media_sideload_image')) {
         require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -363,7 +371,7 @@ function bcp_ajax_handler(): void
         require_once ABSPATH . 'wp-admin/includes/image.php';
     }
 
-    $token    = get_option(BCP_TOKEN_OPTION, '');
+    $token    = get_option(BAHRPU_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
 
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
@@ -385,10 +393,10 @@ function bcp_ajax_handler(): void
         }
 
         // Güncelleme tamamlandı — yanıtı hemen gönder, görsel işlemi arkadan devam etsin.
-        bcp_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'updated' => true]);
+        bahrpu_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'updated' => true]);
 
         if (! empty($_POST['featured_image'])) {
-            $att = bcp_sideload_image(sanitize_url(wp_unslash($_POST['featured_image'])), $post_id, get_the_title($post_id));
+            $att = bahrpu_sideload_image(sanitize_url(wp_unslash($_POST['featured_image'])), $post_id, get_the_title($post_id));
             if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
         }
 
@@ -426,7 +434,7 @@ function bcp_ajax_handler(): void
         'post_excerpt'  => $excerpt,
         'post_name'     => $slug,
         'post_status'   => $status,
-        'post_author'   => bcp_resolve_author_id(),
+        'post_author'   => bahrpu_resolve_author_id(),
         'post_category' => $category_ids ?: [1],
         'tags_input'    => $tag_ids,
     ], true);
@@ -439,11 +447,11 @@ function bcp_ajax_handler(): void
     // boyutlandırma adımı yavaş olabildiğinden önce burada dönülmezse content-manager
     // zaman aşımına düşüp aynı yazıyı tekrar gönderiyor, WordPress'te mükerrer post
     // oluşuyordu.
-    bcp_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'status' => $status], 201);
+    bahrpu_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'status' => $status], 201);
 
     $featured = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
     if ($featured) {
-        $att = bcp_sideload_image($featured, $post_id, $title);
+        $att = bahrpu_sideload_image($featured, $post_id, $title);
         if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
     }
 
@@ -452,12 +460,12 @@ function bcp_ajax_handler(): void
 
 // ─── Silme AJAX ──────────────────────────────────────────────────────────────
 
-add_action('wp_ajax_nopriv_bcp_delete', 'bcp_delete_handler');
-add_action('wp_ajax_bcp_delete',        'bcp_delete_handler');
+add_action('wp_ajax_nopriv_bahrpu_delete', 'bahrpu_delete_handler');
+add_action('wp_ajax_bahrpu_delete',        'bahrpu_delete_handler');
 
-function bcp_delete_handler(): void
+function bahrpu_delete_handler(): void
 {
-    $token    = get_option(BCP_TOKEN_OPTION, '');
+    $token    = get_option(BAHRPU_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
@@ -478,10 +486,10 @@ function bcp_delete_handler(): void
 
 // ─── Görsel Düzeltme AJAX ────────────────────────────────────────────────────
 
-add_action('wp_ajax_nopriv_bcp_fix_images', 'bcp_fix_images_handler');
-add_action('wp_ajax_bcp_fix_images',        'bcp_fix_images_handler');
+add_action('wp_ajax_nopriv_bahrpu_fix_images', 'bahrpu_fix_images_handler');
+add_action('wp_ajax_bahrpu_fix_images',        'bahrpu_fix_images_handler');
 
-function bcp_fix_images_handler(): void
+function bahrpu_fix_images_handler(): void
 {
     if (! function_exists('media_sideload_image')) {
         require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -489,7 +497,7 @@ function bcp_fix_images_handler(): void
         require_once ABSPATH . 'wp-admin/includes/image.php';
     }
 
-    $token    = get_option(BCP_TOKEN_OPTION, '');
+    $token    = get_option(BAHRPU_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
@@ -506,8 +514,8 @@ function bcp_fix_images_handler(): void
     $errors    = [];
 
     $featured_url = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
-    if ($featured_url && ! bcp_is_local_url($featured_url, $site_host)) {
-        $att_id = bcp_sideload_image($featured_url, $post_id, $post->post_title);
+    if ($featured_url && ! bahrpu_is_local_url($featured_url, $site_host)) {
+        $att_id = bahrpu_sideload_image($featured_url, $post_id, $post->post_title);
         if ($att_id && ! is_wp_error($att_id)) {
             set_post_thumbnail($post_id, $att_id);
             $fixed++;
@@ -521,9 +529,9 @@ function bcp_fix_images_handler(): void
         '/<img([^>]*)\ssrc=["\']([^"\']+)["\']([^>]*)>/i',
         function ($m) use ($post_id, $site_host, &$fixed, &$errors) {
             $url = $m[2];
-            if (bcp_is_local_url($url, $site_host)) return $m[0];
+            if (bahrpu_is_local_url($url, $site_host)) return $m[0];
 
-            $att_id = bcp_sideload_image($url, $post_id, '');
+            $att_id = bahrpu_sideload_image($url, $post_id, '');
             if ($att_id && ! is_wp_error($att_id)) {
                 $local_url = wp_get_attachment_url($att_id);
                 $fixed++;
@@ -546,7 +554,7 @@ function bcp_fix_images_handler(): void
     ]);
 }
 
-function bcp_is_local_url(string $url, string $site_host): bool
+function bahrpu_is_local_url(string $url, string $site_host): bool
 {
     if (str_starts_with($url, '/')) return true;
     $host = parse_url($url, PHP_URL_HOST);
@@ -555,14 +563,14 @@ function bcp_is_local_url(string $url, string $site_host): bool
 
 // ─── Version Info ─────────────────────────────────────────────────────────────
 
-add_action('wp_ajax_nopriv_bcp_version', 'bcp_version_handler');
-add_action('wp_ajax_bcp_version',        'bcp_version_handler');
+add_action('wp_ajax_nopriv_bahrpu_version', 'bahrpu_version_handler');
+add_action('wp_ajax_bahrpu_version',        'bahrpu_version_handler');
 
-function bcp_version_handler(): void
+function bahrpu_version_handler(): void
 {
     global $wp_version;
 
-    $token    = get_option(BCP_TOKEN_OPTION, '');
+    $token    = get_option(BAHRPU_TOKEN_OPTION, '');
     $incoming = $_POST['_cm_token'] ?? $_GET['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
     if (empty($token) || ! hash_equals($token, (string) $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
@@ -591,47 +599,47 @@ add_action('admin_menu', function () {
         'BahriCanli Publisher',
         'manage_options',
         'bahricanli-publisher',
-        'bcp_settings_page'
+        'bahrpu_settings_page'
     );
 });
 
-function bcp_settings_page(): void
+function bahrpu_settings_page(): void
 {
-    if (isset($_POST['bcp_token'])) {
-        check_admin_referer('bcp_save_token');
-        update_option(BCP_TOKEN_OPTION, sanitize_text_field(wp_unslash($_POST['bcp_token'])));
-        update_option(BCP_AUTHOR_OPTION, (int) ($_POST['bcp_author'] ?? 0));
+    if (isset($_POST['bahrpu_token'])) {
+        check_admin_referer('bahrpu_save_token');
+        update_option(BAHRPU_TOKEN_OPTION, sanitize_text_field(wp_unslash($_POST['bahrpu_token'])));
+        update_option(BAHRPU_AUTHOR_OPTION, (int) ($_POST['bahrpu_author'] ?? 0));
         echo '<div class="notice notice-success"><p>Ayarlar kaydedildi.</p></div>';
     }
 
-    $token       = get_option(BCP_TOKEN_OPTION, '');
-    $author_id   = (int) get_option(BCP_AUTHOR_OPTION, 0);
-    $authorUsers = bcp_get_authorable_users();
+    $token       = get_option(BAHRPU_TOKEN_OPTION, '');
+    $author_id   = (int) get_option(BAHRPU_AUTHOR_OPTION, 0);
+    $authorUsers = bahrpu_get_authorable_users();
     ?>
     <div class="wrap">
         <h1>BahriCanli Publisher Ayarları</h1>
         <p>Bu token, <strong>content-manager.tr</strong> servisindeki <code>WORDPRESS_PLUGIN_TOKEN</code> değeriyle eşleşmelidir.</p>
 
         <form method="post">
-            <?php wp_nonce_field('bcp_save_token'); ?>
+            <?php wp_nonce_field('bahrpu_save_token'); ?>
             <table class="form-table">
                 <tr>
                     <th>API Token</th>
                     <td>
-                        <input type="text" name="bcp_token"
+                        <input type="text" name="bahrpu_token"
                                value="<?php echo esc_attr($token); ?>"
                                class="regular-text" />
                         <button type="button" onclick="
                             const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
                             let t=''; for(let i=0;i<48;i++) t+=chars[Math.floor(Math.random()*chars.length)];
-                            document.querySelector('[name=bcp_token]').value=t;
+                            document.querySelector('[name=bahrpu_token]').value=t;
                         " class="button">Yeni Token Oluştur</button>
                     </td>
                 </tr>
                 <tr>
                     <th>Varsayılan Yazar</th>
                     <td>
-                        <select name="bcp_author">
+                        <select name="bahrpu_author">
                             <option value="0" <?php selected($author_id, 0); ?>>— WordPress varsayılanı (ID: 1) —</option>
                             <?php foreach ($authorUsers as $u) : ?>
                                 <option value="<?php echo (int) $u['id']; ?>" <?php selected($author_id, $u['id']); ?>>
