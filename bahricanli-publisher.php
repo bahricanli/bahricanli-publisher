@@ -2,8 +2,8 @@
 /**
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
- * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories and tags. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.3.1
+ * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
+ * Version:     1.4.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -18,6 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 define('BCP_TOKEN_OPTION', 'bahricanli_publisher_token');
+define('BCP_AUTHOR_OPTION', 'bahricanli_publisher_default_author');
 
 // ─── REST API Endpoint ────────────────────────────────────────────────────────
 
@@ -33,6 +34,46 @@ add_action('rest_api_init', function () {
         'permission_callback' => 'bcp_check_token',
     ]);
 });
+
+/**
+ * Yazı yazarı olarak atanabilecek kullanıcıları döndürür (edit_posts yetkisi olanlar).
+ * Ayarlar sayfasındaki "Varsayılan Yazar" açılır listesini doldurmak için kullanılır.
+ *
+ * @return array<int, array{id:int,name:string}>
+ */
+function bcp_get_authorable_users(): array
+{
+    $users = get_users([
+        'capability' => ['edit_posts'],
+        'orderby'    => 'display_name',
+        'order'      => 'ASC',
+        'fields'     => ['ID', 'display_name'],
+    ]);
+
+    $result = [];
+    foreach ($users as $user) {
+        $result[] = [
+            'id'   => (int) $user->ID,
+            'name' => $user->display_name,
+        ];
+    }
+
+    return $result;
+}
+
+/**
+ * Yeni yazının hangi WordPress kullanıcısına atanacağını belirler.
+ * Ayarlar sayfasında bir "Varsayılan Yazar" seçilmişse ve o kullanıcı hâlâ
+ * yazı yazabiliyorsa onu kullanır; aksi halde WordPress'in ilk kullanıcısına (1) düşer.
+ */
+function bcp_resolve_author_id(): int
+{
+    $author_id = (int) get_option(BCP_AUTHOR_OPTION, 0);
+    if ($author_id > 0 && user_can($author_id, 'edit_posts')) {
+        return $author_id;
+    }
+    return 1;
+}
 
 function bcp_check_token(WP_REST_Request $request): bool
 {
@@ -100,7 +141,7 @@ function bcp_create_post(WP_REST_Request $request): WP_REST_Response
         'post_excerpt'  => $excerpt,
         'post_name'     => $slug,
         'post_status'   => $status,
-        'post_author'   => 1,
+        'post_author'   => bcp_resolve_author_id(),
         'post_category' => $category_ids ?: [1],
         'tags_input'    => $tag_ids,
     ], true);
@@ -385,7 +426,7 @@ function bcp_ajax_handler(): void
         'post_excerpt'  => $excerpt,
         'post_name'     => $slug,
         'post_status'   => $status,
-        'post_author'   => 1,
+        'post_author'   => bcp_resolve_author_id(),
         'post_category' => $category_ids ?: [1],
         'tags_input'    => $tag_ids,
     ], true);
@@ -559,10 +600,13 @@ function bcp_settings_page(): void
     if (isset($_POST['bcp_token'])) {
         check_admin_referer('bcp_save_token');
         update_option(BCP_TOKEN_OPTION, sanitize_text_field(wp_unslash($_POST['bcp_token'])));
-        echo '<div class="notice notice-success"><p>Token kaydedildi.</p></div>';
+        update_option(BCP_AUTHOR_OPTION, (int) ($_POST['bcp_author'] ?? 0));
+        echo '<div class="notice notice-success"><p>Ayarlar kaydedildi.</p></div>';
     }
 
-    $token = get_option(BCP_TOKEN_OPTION, '');
+    $token       = get_option(BCP_TOKEN_OPTION, '');
+    $author_id   = (int) get_option(BCP_AUTHOR_OPTION, 0);
+    $authorUsers = bcp_get_authorable_users();
     ?>
     <div class="wrap">
         <h1>BahriCanli Publisher Ayarları</h1>
@@ -582,6 +626,20 @@ function bcp_settings_page(): void
                             let t=''; for(let i=0;i<48;i++) t+=chars[Math.floor(Math.random()*chars.length)];
                             document.querySelector('[name=bcp_token]').value=t;
                         " class="button">Yeni Token Oluştur</button>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Varsayılan Yazar</th>
+                    <td>
+                        <select name="bcp_author">
+                            <option value="0" <?php selected($author_id, 0); ?>>— WordPress varsayılanı (ID: 1) —</option>
+                            <?php foreach ($authorUsers as $u) : ?>
+                                <option value="<?php echo (int) $u['id']; ?>" <?php selected($author_id, $u['id']); ?>>
+                                    <?php echo esc_html($u['name']); ?> (ID: <?php echo (int) $u['id']; ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="description">content-manager.tr üzerinden gönderilen yazılar bu kullanıcıya atanır.</p>
                     </td>
                 </tr>
                 <tr>

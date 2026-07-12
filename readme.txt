@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.3.1
+Stable tag:        1.4.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ content-manager.tr manages content for multiple WordPress sites simultaneously, 
 
 Once installed and configured, the plugin allows content-manager.tr to:
 
-* **Publish** new posts with title, content (Gutenberg blocks supported), excerpt, slug, categories, tags and featured image
+* **Publish** new posts with title, content (Gutenberg blocks supported), excerpt, slug, categories, tags, author and featured image
 * **Update** existing posts including replacing the featured image
 * **Delete** posts
 * **Sideload featured images** from external URLs (Unsplash, Pexels, Pixabay, etc.) directly into the WordPress media library
@@ -66,6 +66,10 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.4.0 =
+* Add: "Varsayılan Yazar" (Default Author) setting on the settings page — choose which WordPress user
+  new posts published via content-manager.tr are assigned to (defaults to user ID 1 if unset).
 
 = 1.3.1 =
 * Fix: AJAX post oluşturma/güncellemede yanıt (post_id) artık öne çıkan görsel indirilip
