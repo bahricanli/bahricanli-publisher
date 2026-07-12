@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.5.0
+ * Version:     1.6.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -73,6 +73,31 @@ function bahrpu_resolve_author_id(): int
         return $author_id;
     }
     return 1;
+}
+
+/**
+ * Yoast SEO'nun meta description alanını (`_yoast_wpseo_metadesc`) doldurur.
+ *
+ * Neden gerekli: content-manager her zaman `excerpt` gönderiyor ve bu WP'nin
+ * kendi `post_excerpt` alanına yazılıyor, ama Yoast SEO arama sonucu meta
+ * description'ı (`<meta name="description">`) İÇİN ayrı bir postmeta alanı
+ * kullanıyor. Bu alan hiç set edilmediğinde ve sitenin Yoast şablonu da boşsa,
+ * Yoast description etiketini tamamen atlıyor (og:description ise kendi
+ * excerpt fallback'i sayesinde dolu geliyordu — asıl SEO description eksikti).
+ */
+function bahrpu_set_seo_meta_description(int $post_id, string $excerpt): void
+{
+    $excerpt = trim(wp_strip_all_tags($excerpt));
+    if ($excerpt === '') {
+        return;
+    }
+
+    if (mb_strlen($excerpt) > 155) {
+        $excerpt = mb_substr($excerpt, 0, 155);
+        $excerpt = trim(mb_substr($excerpt, 0, mb_strrpos($excerpt, ' ') ?: 155)) . '…';
+    }
+
+    update_post_meta($post_id, '_yoast_wpseo_metadesc', $excerpt);
 }
 
 function bahrpu_check_token(WP_REST_Request $request): bool
@@ -150,6 +175,8 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
         return new WP_REST_Response(['error' => $post_id->get_error_message()], 500);
     }
 
+    bahrpu_set_seo_meta_description($post_id, $excerpt);
+
     $featured_image_url = sanitize_url($params['featured_image'] ?? '');
     if ($featured_image_url) {
         $attachment_id = bahrpu_sideload_image($featured_image_url, $post_id, $title);
@@ -191,6 +218,10 @@ function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
         if (is_wp_error($result)) {
             return new WP_REST_Response(['error' => $result->get_error_message()], 500);
         }
+    }
+
+    if (! empty($params['excerpt'])) {
+        bahrpu_set_seo_meta_description($post_id, sanitize_textarea_field($params['excerpt']));
     }
 
     if (! empty($params['featured_image'])) {
@@ -392,6 +423,10 @@ function bahrpu_ajax_handler(): void
             wp_send_json(['error' => $result->get_error_message()], 500);
         }
 
+        if (! empty($_POST['excerpt'])) {
+            bahrpu_set_seo_meta_description($post_id, sanitize_textarea_field($_POST['excerpt']));
+        }
+
         // Güncelleme tamamlandı — yanıtı hemen gönder, görsel işlemi arkadan devam etsin.
         bahrpu_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'updated' => true]);
 
@@ -442,6 +477,8 @@ function bahrpu_ajax_handler(): void
     if (is_wp_error($post_id)) {
         wp_send_json(['error' => $post_id->get_error_message()], 500);
     }
+
+    bahrpu_set_seo_meta_description($post_id, $excerpt);
 
     // Yazı oluşturuldu — post_id burada kesinleşti, yanıtı hemen gönder. Görsel indirme/
     // boyutlandırma adımı yavaş olabildiğinden önce burada dönülmezse content-manager

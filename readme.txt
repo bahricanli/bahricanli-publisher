@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.5.0
+Stable tag:        1.6.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -53,7 +53,7 @@ JPEG, PNG, WebP and GIF. The plugin detects the format from the downloaded file'
 
 == External Services ==
 
-This plugin makes an outbound HTTP request to the WordPress.org API to check whether a WordPress core update is available. This request is triggered only when the `bcp_version` AJAX action is called by the content-manager.tr application.
+This plugin makes an outbound HTTP request to the WordPress.org API to check whether a WordPress core update is available. This request is triggered only when the `bahrpu_version` AJAX action is called by the content-manager.tr application.
 
 * Service: WordPress.org Core Version Check API
 * URL: `https://api.wordpress.org/core/version-check/1.7/`
@@ -66,6 +66,12 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.6.0 =
+* Fix: Posts published or updated via content-manager.tr now also populate Yoast SEO's per-post
+  meta description field (`_yoast_wpseo_metadesc`) from the post excerpt. Previously the excerpt
+  was only saved to WordPress's native excerpt field, so Yoast's search-result meta description
+  tag was left empty whenever the site's own Yoast templates had no fallback configured.
 
 = 1.5.0 =
 * Fix: All internal function names, defines and the AJAX action prefix renamed from the too-short
