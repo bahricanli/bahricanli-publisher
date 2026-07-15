@@ -2,4 +2,5 @@
 .github
 .distignore
 .gitignore
+.wordpress-org
 *.zip
