@@ -1,10 +1,10 @@
 === BahriCanli Publisher ===
-Contributors:      bmericc, bahricanli
+Contributors:      bmericc
 Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.6.2
+Stable tag:        1.6.3
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,9 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.6.3 =
+* Fix: readme.txt `Contributors` alanından geçersiz WordPress.org kullanıcı adı (`bahricanli`) kaldırıldı.
 
 = 1.6.2 =
 * Chore: WordPress.org eklenti sayfası için icon/banner görselleri eklendi (SVN assets/ dizini).
