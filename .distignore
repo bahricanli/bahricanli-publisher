@@ -3,4 +3,5 @@
 .distignore
 .gitignore
 .wordpress-org
+README.md
 *.zip
