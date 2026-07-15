@@ -1,0 +1,56 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: BahriCanli Publisher 1.6.4\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/bahricanli-publisher\n"
+"Last-Translator: Bahri Meriç Canlı <bmericc@gmail.com>\n"
+"Language-Team: Turkish\n"
+"Language: tr_TR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-07-15T00:00:00+00:00\n"
+"PO-Revision-Date: 2026-07-15 00:00+0300\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: manual\n"
+"X-Domain: bahricanli-publisher\n"
+
+#. Settings page notice shown after saving.
+msgid "Settings saved."
+msgstr "Ayarlar kaydedildi."
+
+#. Settings page <h1>.
+msgid "BahriCanli Publisher Settings"
+msgstr "BahriCanli Publisher Ayarları"
+
+#. Settings page intro text. Inline <strong>/<code> tags must be preserved in the translation.
+msgid "This token must match the <strong>content-manager.tr</strong> service's <code>WORDPRESS_PLUGIN_TOKEN</code> value."
+msgstr "Bu token, <strong>content-manager.tr</strong> servisindeki <code>WORDPRESS_PLUGIN_TOKEN</code> değeriyle eşleşmelidir."
+
+msgid "API Token"
+msgstr "API Token"
+
+msgid "Generate New Token"
+msgstr "Yeni Token Oluştur"
+
+msgid "Default Author"
+msgstr "Varsayılan Yazar"
+
+#. translators: %d: WordPress user ID (always 1)
+msgid "— WordPress default (ID: %d) —"
+msgstr "— WordPress varsayılanı (ID: %d) —"
+
+#. translators: %1$s: user display name, %2$d: WordPress user ID
+msgid "%1$s (ID: %2$d)"
+msgstr "%1$s (ID: %2$d)"
+
+msgid "Posts sent via content-manager.tr will be assigned to this user."
+msgstr "content-manager.tr üzerinden gönderilen yazılar bu kullanıcıya atanır."
+
+msgid "Endpoint URL"
+msgstr "Endpoint URL"
+
+msgid "Enter this URL in your content-manager.tr settings."
+msgstr "Bu URL'yi content-manager.tr ayarlarına girin."
+
+msgid "Save"
+msgstr "Kaydet"
