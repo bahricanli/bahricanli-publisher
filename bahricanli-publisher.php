@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.6.0
+ * Version:     1.6.1
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
