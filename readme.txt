@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.6.0
+Stable tag:        1.6.1
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,11 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.6.1 =
+* Chore: GitHub üzerinden WordPress.org SVN'ine otomatik dağıtım (GitHub Actions) kuruldu.
+  Bu, yalnızca yayın altyapısıyla ilgili bir değişikliktir; eklenti işlevselliğinde bir
+  değişiklik yoktur.
 
 = 1.6.0 =
 * Fix: Posts published or updated via content-manager.tr now also populate Yoast SEO's per-post
