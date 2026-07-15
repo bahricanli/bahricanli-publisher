@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.6.3
+Stable tag:        1.6.4
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,12 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.6.4 =
+* Add: Full Turkish (tr_TR) translation bundled with the plugin. The settings page now automatically
+  displays in Turkish when the WordPress site's language is set to Turkish, and in English otherwise.
+* Improve: All settings-page strings are now wrapped for translation (`load_plugin_textdomain`),
+  making the plugin translation-ready for additional languages in the future.
 
 = 1.6.3 =
 * Fix: readme.txt `Contributors` alanından geçersiz WordPress.org kullanıcı adı (`bahricanli`) kaldırıldı.
