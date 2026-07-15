@@ -1,0 +1,32 @@
+name: Deploy to WordPress.org
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  tag:
+    name: Push tag to WordPress.org SVN
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches plugin version
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/}"
+          PLUGIN_VERSION=$(grep -m1 "^ \* Version:" bahricanli-publisher.php | awk '{print $3}')
+          README_VERSION=$(grep -m1 "^Stable tag:" readme.txt | awk '{print $3}')
+
+          if [ "$TAG_VERSION" != "$PLUGIN_VERSION" ] || [ "$TAG_VERSION" != "$README_VERSION" ]; then
+            echo "Version mismatch: tag=$TAG_VERSION, plugin header=$PLUGIN_VERSION, readme stable tag=$README_VERSION"
+            exit 1
+          fi
+
+      - name: WordPress Plugin Deploy
+        uses: 10up/action-wordpress-plugin-deploy@stable
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: bahricanli-publisher
