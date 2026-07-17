@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.6.5
+ * Version:     1.6.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -19,10 +19,6 @@ if (! defined('ABSPATH')) {
 
 define('BAHRPU_TOKEN_OPTION', 'bahricanli_publisher_token');
 define('BAHRPU_AUTHOR_OPTION', 'bahricanli_publisher_default_author');
-
-add_action('init', function () {
-    load_plugin_textdomain('bahricanli-publisher', false, dirname(plugin_basename(__FILE__)) . '/languages');
-});
 
 // ─── REST API Endpoint ────────────────────────────────────────────────────────
 
@@ -554,11 +550,13 @@ function bahrpu_fix_images_handler(): void
     $fixed     = 0;
     $errors    = [];
 
+    $new_featured_url = null;
     $featured_url = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
     if ($featured_url && ! bahrpu_is_local_url($featured_url, $site_host)) {
         $att_id = bahrpu_sideload_image($featured_url, $post_id, $post->post_title);
         if ($att_id && ! is_wp_error($att_id)) {
             set_post_thumbnail($post_id, $att_id);
+            $new_featured_url = wp_get_attachment_url($att_id);
             $fixed++;
         } else {
             $errors[] = "featured: " . (is_wp_error($att_id) ? $att_id->get_error_message() : 'hata');
@@ -589,9 +587,10 @@ function bahrpu_fix_images_handler(): void
     }
 
     wp_send_json([
-        'post_id' => $post_id,
-        'fixed'   => $fixed,
-        'errors'  => $errors,
+        'post_id'            => $post_id,
+        'fixed'              => $fixed,
+        'errors'             => $errors,
+        'featured_image_url' => $new_featured_url,
     ]);
 }
 
@@ -650,7 +649,7 @@ function bahrpu_settings_page(): void
         check_admin_referer('bahrpu_save_token');
         update_option(BAHRPU_TOKEN_OPTION, sanitize_text_field(wp_unslash($_POST['bahrpu_token'])));
         update_option(BAHRPU_AUTHOR_OPTION, (int) ($_POST['bahrpu_author'] ?? 0));
-        echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'bahricanli-publisher') . '</p></div>';
+        echo '<div class="notice notice-success"><p>Ayarlar kaydedildi.</p></div>';
     }
 
     $token       = get_option(BAHRPU_TOKEN_OPTION, '');
@@ -658,22 +657,14 @@ function bahrpu_settings_page(): void
     $authorUsers = bahrpu_get_authorable_users();
     ?>
     <div class="wrap">
-        <h1><?php esc_html_e('BahriCanli Publisher Settings', 'bahricanli-publisher'); ?></h1>
-        <p>
-            <?php
-            /* translators: inline <strong>/<code> tags must be preserved in the translation. */
-            echo wp_kses(
-                __('This token must match the <strong>content-manager.tr</strong> service\'s <code>WORDPRESS_PLUGIN_TOKEN</code> value.', 'bahricanli-publisher'),
-                ['strong' => [], 'code' => []]
-            );
-            ?>
-        </p>
+        <h1>BahriCanli Publisher Ayarları</h1>
+        <p>Bu token, <strong>content-manager.tr</strong> servisindeki <code>WORDPRESS_PLUGIN_TOKEN</code> değeriyle eşleşmelidir.</p>
 
         <form method="post">
             <?php wp_nonce_field('bahrpu_save_token'); ?>
             <table class="form-table">
                 <tr>
-                    <th><?php esc_html_e('API Token', 'bahricanli-publisher'); ?></th>
+                    <th>API Token</th>
                     <td>
                         <input type="text" name="bahrpu_token"
                                value="<?php echo esc_attr($token); ?>"
@@ -682,40 +673,32 @@ function bahrpu_settings_page(): void
                             const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
                             let t=''; for(let i=0;i<48;i++) t+=chars[Math.floor(Math.random()*chars.length)];
                             document.querySelector('[name=bahrpu_token]').value=t;
-                        " class="button"><?php esc_html_e('Generate New Token', 'bahricanli-publisher'); ?></button>
+                        " class="button">Yeni Token Oluştur</button>
                     </td>
                 </tr>
                 <tr>
-                    <th><?php esc_html_e('Default Author', 'bahricanli-publisher'); ?></th>
+                    <th>Varsayılan Yazar</th>
                     <td>
                         <select name="bahrpu_author">
-                            <option value="0" <?php selected($author_id, 0); ?>>
-                                <?php
-                                /* translators: %d: WordPress user ID (always 1) */
-                                printf(esc_html__('— WordPress default (ID: %d) —', 'bahricanli-publisher'), 1);
-                                ?>
-                            </option>
+                            <option value="0" <?php selected($author_id, 0); ?>>— WordPress varsayılanı (ID: 1) —</option>
                             <?php foreach ($authorUsers as $u) : ?>
                                 <option value="<?php echo (int) $u['id']; ?>" <?php selected($author_id, $u['id']); ?>>
-                                    <?php
-                                    /* translators: %1$s: user display name, %2$d: WordPress user ID */
-                                    printf(esc_html__('%1$s (ID: %2$d)', 'bahricanli-publisher'), esc_html($u['name']), (int) $u['id']);
-                                    ?>
+                                    <?php echo esc_html($u['name']); ?> (ID: <?php echo (int) $u['id']; ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <p class="description"><?php esc_html_e('Posts sent via content-manager.tr will be assigned to this user.', 'bahricanli-publisher'); ?></p>
+                        <p class="description">content-manager.tr üzerinden gönderilen yazılar bu kullanıcıya atanır.</p>
                     </td>
                 </tr>
                 <tr>
-                    <th><?php esc_html_e('Endpoint URL', 'bahricanli-publisher'); ?></th>
+                    <th>Endpoint URL</th>
                     <td>
                         <code><?php echo esc_url(rest_url('bahricanli-publisher/v1/posts')); ?></code>
-                        <p class="description"><?php esc_html_e('Enter this URL in your content-manager.tr settings.', 'bahricanli-publisher'); ?></p>
+                        <p class="description">Bu URL'yi content-manager.tr ayarlarına girin.</p>
                     </td>
                 </tr>
             </table>
-            <?php submit_button(esc_html__('Save', 'bahricanli-publisher')); ?>
+            <?php submit_button('Kaydet'); ?>
         </form>
     </div>
     <?php
