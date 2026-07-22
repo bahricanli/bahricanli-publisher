@@ -362,12 +362,10 @@ function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_
     }
     // .jpeg → .jpg normalize
     $basename = preg_replace('/\.jpeg$/i', '.jpg', $basename);
-    // Dosya adına yazı başlığı slug'ını ekle: "italya-cantalar-pexels-photo-123.jpg"
+    // Dosya adını yazı başlığı slug'ı olarak kullan
     if ($desc) {
-        $slug = mb_substr( sanitize_title($desc), 0, 60 );
-        $ext  = pathinfo($basename, PATHINFO_EXTENSION);
-        $name = pathinfo($basename, PATHINFO_FILENAME);
-        $basename = $slug . '-' . $name . ($ext ? '.' . $ext : '');
+        $ext      = pathinfo($basename, PATHINFO_EXTENSION);
+        $basename = mb_substr( sanitize_title($desc), 0, 80 ) . ($ext ? '.' . $ext : '');
     }
     $file_array = [
         'name'     => $basename,
