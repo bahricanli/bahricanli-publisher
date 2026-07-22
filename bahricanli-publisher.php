@@ -273,17 +273,25 @@ function bahrpu_grant_upload_cap(array $allcaps, array $caps): array
 function bahrpu_no_avif_output( array $formats ): array {
     return array_filter( $formats, fn( $v ) => $v !== 'image/avif' );
 }
-function bahrpu_no_avif_mime( string $mime ): string {
-    return $mime === 'image/avif' ? 'image/jpeg' : $mime;
+// webp-uploads eklentisi için: transform listesinden AVIF'i çıkar, sadece JPEG bırak
+function bahrpu_no_avif_mime_transforms( array $transforms ): array {
+    foreach ( $transforms as $src_mime => &$targets ) {
+        $targets = array_filter( $targets, fn( $t ) => ( $t['mime-type'] ?? $t ) !== 'image/avif' );
+    }
+    return $transforms;
 }
 
 // Sideload yapar; attachment AVIF olursa GD ile JPEG'e dönüştürür ve attachment günceller
 function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc): int|WP_Error
 {
-    add_filter( 'image_editor_output_format', 'bahrpu_no_avif_output', 999 );
-    add_filter( 'wp_get_attachment_image_src',  '__return_false', 0 ); // önleyici değil, gerek yok
+    // WP core + webp-uploads/performance-lab eklentisinin AVIF dönüşümünü geçici kapat
+    add_filter( 'image_editor_output_format',          'bahrpu_no_avif_output',           999 );
+    add_filter( 'webp_uploads_upload_image_mime_transforms', 'bahrpu_no_avif_mime_transforms', 999 );
+
     $id = bahrpu_sideload_image( $url, $post_id, $desc );
-    remove_filter( 'image_editor_output_format', 'bahrpu_no_avif_output', 999 );
+
+    remove_filter( 'image_editor_output_format',          'bahrpu_no_avif_output',           999 );
+    remove_filter( 'webp_uploads_upload_image_mime_transforms', 'bahrpu_no_avif_mime_transforms', 999 );
 
     if ( is_wp_error( $id ) ) {
         return $id;
