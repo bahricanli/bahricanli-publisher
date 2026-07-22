@@ -481,19 +481,23 @@ function bahrpu_ajax_handler(): void
             bahrpu_set_seo_meta_description($post_id, sanitize_textarea_field($_POST['excerpt']));
         }
 
+        // $_POST'u bahrpu_respond_now öncesinde oku — fastcgi_finish_request sonrası kaybolabilir
+        $featured_image_url = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
+        $orig_url           = sanitize_url(wp_unslash($_POST['original_image_url'] ?? ''));
+        $post_title         = get_the_title($post_id);
+
         // Güncelleme tamamlandı — yanıtı hemen gönder, görsel işlemi arkadan devam etsin.
         bahrpu_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'updated' => true]);
 
-        if (! empty($_POST['featured_image'])) {
-            $att = bahrpu_sideload_image(sanitize_url(wp_unslash($_POST['featured_image'])), $post_id, get_the_title($post_id));
+        if ($featured_image_url) {
+            $att = bahrpu_sideload_image($featured_image_url, $post_id, $post_title);
             if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
         }
 
         // og:image için küçük JPEG — AVIF dönüşümü kapalı
-        $orig_url = sanitize_url(wp_unslash($_POST['original_image_url'] ?? ''));
         if ($orig_url) {
             $social_url = bahrpu_social_image_url($orig_url);
-            $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, get_the_title($post_id));
+            $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $post_title);
             if ($social_id && ! is_wp_error($social_id)) {
                 update_post_meta($post_id, '_cm_social_image_url', wp_get_attachment_url($social_id));
             }
