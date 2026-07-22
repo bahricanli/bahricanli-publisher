@@ -269,23 +269,47 @@ function bahrpu_grant_upload_cap(array $allcaps, array $caps): array
     return $allcaps;
 }
 
+// AVIF dönüşümünü engelleyen filtreler
 function bahrpu_no_avif_output( array $formats ): array {
-    foreach ( $formats as $src => $out ) {
-        if ( $out === 'image/avif' ) {
-            unset( $formats[ $src ] );
-        }
-    }
-    return $formats;
+    return array_filter( $formats, fn( $v ) => $v !== 'image/avif' );
+}
+function bahrpu_no_avif_mime( string $mime ): string {
+    return $mime === 'image/avif' ? 'image/jpeg' : $mime;
 }
 
-// AVIF dönüşümünü geçici olarak devre dışı bırakarak sideload yapar (og:image JPEG kalır)
+// Sideload yapar; attachment AVIF olursa GD ile JPEG'e dönüştürür ve attachment günceller
 function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc): int|WP_Error
 {
     add_filter( 'image_editor_output_format', 'bahrpu_no_avif_output', 999 );
-    $result = bahrpu_sideload_image( $url, $post_id, $desc );
+    add_filter( 'wp_get_attachment_image_src',  '__return_false', 0 ); // önleyici değil, gerek yok
+    $id = bahrpu_sideload_image( $url, $post_id, $desc );
     remove_filter( 'image_editor_output_format', 'bahrpu_no_avif_output', 999 );
 
-    return $result;
+    if ( is_wp_error( $id ) ) {
+        return $id;
+    }
+
+    // Yine de AVIF olduysa (WP zorla çevirdiyse) GD ile JPEG'e dönüştür
+    $path = get_attached_file( $id );
+    if ( $path && preg_match( '/\.avif$/i', $path ) && function_exists( 'imagecreatefromavif' ) ) {
+        $img      = @imagecreatefromavif( $path );
+        $jpg_path = preg_replace( '/\.avif$/i', '.jpg', $path );
+        if ( $img && imagejpeg( $img, $jpg_path, 90 ) ) {
+            imagedestroy( $img );
+            // Eski AVIF dosyasını sil, yeni JPEG'i kaydet
+            @unlink( $path );
+            update_attached_file( $id, $jpg_path );
+            wp_update_post( [ 'ID' => $id, 'post_mime_type' => 'image/jpeg' ] );
+            update_post_meta( $id, '_wp_attachment_metadata',
+                array_merge(
+                    (array) wp_get_attachment_metadata( $id ),
+                    [ 'file' => _wp_relative_upload_path( $jpg_path ) ]
+                )
+            );
+        }
+    }
+
+    return $id;
 }
 
 // og:image için Pexels/Unsplash URL'ini küçük JPEG'e çevirir (1200px, fm=jpg)
