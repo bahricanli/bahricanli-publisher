@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.6.5
+Stable tag:        1.7.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,9 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.7.0 =
+* Feat: `bahrpu_fix_images` AJAX action now returns `featured_image_url` in the response, enabling the content manager to retrieve the sideloaded image URL directly without a separate REST API call.
 
 = 1.6.5 =
 * Chore: Added a GitHub-facing README.md alongside readme.txt (WordPress.org still reads readme.txt).
