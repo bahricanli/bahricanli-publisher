@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.8.1
+Stable tag:        1.9.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,9 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.9.0 =
+* Feat: Ayarlar sayfasına "Güncelleme Kontrolü" butonu eklendi — tıklanınca update_plugins önbelleği temizlenir ve WordPress.org'dan güncel sürüm bilgisi çekilir.
 
 = 1.8.1 =
 * Chore: Sideload edilen görselin dosya adı kaynak URL yerine yazı başlığı slug'ından oluşturuluyor.

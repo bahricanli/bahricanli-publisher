@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.8.1
+ * Version:     1.9.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -758,6 +758,12 @@ function bahrpu_settings_page(): void
         echo '<div class="notice notice-success"><p>Ayarlar kaydedildi.</p></div>';
     }
 
+    if (isset($_POST['bahrpu_check_updates']) && check_admin_referer('bahrpu_check_updates')) {
+        delete_site_transient('update_plugins');
+        wp_update_plugins();
+        echo '<div class="notice notice-success"><p>Güncelleme kontrolü tamamlandı. <a href="' . esc_url(admin_url('plugins.php')) . '">Eklentiler sayfasına git →</a></p></div>';
+    }
+
     $token       = get_option(BAHRPU_TOKEN_OPTION, '');
     $author_id   = (int) get_option(BAHRPU_AUTHOR_OPTION, 0);
     $authorUsers = bahrpu_get_authorable_users();
@@ -805,6 +811,15 @@ function bahrpu_settings_page(): void
                 </tr>
             </table>
             <?php submit_button('Kaydet'); ?>
+        </form>
+
+        <hr>
+        <h2>Güncelleme Kontrolü</h2>
+        <p>WordPress'in eklenti güncelleme önbelleğini temizler ve WordPress.org'dan güncel sürüm bilgisini çeker.</p>
+        <form method="post">
+            <?php wp_nonce_field('bahrpu_check_updates'); ?>
+            <input type="hidden" name="bahrpu_check_updates" value="1">
+            <?php submit_button('Şimdi Kontrol Et', 'secondary'); ?>
         </form>
     </div>
     <?php
