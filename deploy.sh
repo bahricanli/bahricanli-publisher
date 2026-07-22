@@ -2,7 +2,7 @@
 # BahriCanli Publisher — deploy: alpindede, avustralya, estonya, italya
 set -e
 
-SITES=("alpindede" "avustralya" "estonya" "italya" "bahriinfo" "bahricanli")
+SITES=("alpindede" "avustralya" "estonya" "italya" "bahriinfo" "bahricanli" "ubuntu" "yunanistan" "codon")
 
 for site in "${SITES[@]}"; do
     DIR="/root/wordpress/sites/${site}/wp-content/plugins/bahricanli-publisher"
