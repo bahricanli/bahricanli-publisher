@@ -360,6 +360,8 @@ function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_
         $ext_map   = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
         $basename .= '.' . ($ext_map[$mime_type] ?? 'jpg');
     }
+    // .jpeg → .jpg normalize
+    $basename = preg_replace('/\.jpeg$/i', '.jpg', $basename);
     $file_array = [
         'name'     => $basename,
         'tmp_name' => $tmp,
