@@ -185,16 +185,13 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
-    // Orijinal görsel (JPEG/PNG) sosyal medya paylaşımları için ayrıca yüklenir.
-    // X ve LinkedIn AVIF formatını desteklemediğinden featured_image yerine bu kullanılır.
+    // og:image için küçük JPEG — AVIF featured image'dan ayrı, botlar AVIF desteklemiyor
     $original_image_url = sanitize_url($params['original_image_url'] ?? '');
-    if ($original_image_url && $original_image_url !== $featured_image_url) {
-        $orig_attachment_id = bahrpu_sideload_image($original_image_url, $post_id, $title);
-        if ($orig_attachment_id && ! is_wp_error($orig_attachment_id)) {
-            $orig_url = wp_get_attachment_url($orig_attachment_id);
-            if ($orig_url) {
-                update_post_meta($post_id, '_cm_social_image_url', $orig_url);
-            }
+    if ($original_image_url) {
+        $social_url = bahrpu_social_image_url($original_image_url);
+        $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $title);
+        if ($social_id && ! is_wp_error($social_id)) {
+            update_post_meta($post_id, '_cm_social_image_url', wp_get_attachment_url($social_id));
         }
     }
 
@@ -246,15 +243,13 @@ function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
+    // og:image için küçük JPEG güncelle
     $original_image_url = sanitize_url($params['original_image_url'] ?? '');
-    $featured_image_url = sanitize_url($params['featured_image'] ?? '');
-    if ($original_image_url && $original_image_url !== $featured_image_url) {
-        $orig_attachment_id = bahrpu_sideload_image($original_image_url, $post_id, $title);
-        if ($orig_attachment_id && ! is_wp_error($orig_attachment_id)) {
-            $orig_url = wp_get_attachment_url($orig_attachment_id);
-            if ($orig_url) {
-                update_post_meta($post_id, '_cm_social_image_url', $orig_url);
-            }
+    if ($original_image_url) {
+        $social_url = bahrpu_social_image_url($original_image_url);
+        $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $title);
+        if ($social_id && ! is_wp_error($social_id)) {
+            update_post_meta($post_id, '_cm_social_image_url', wp_get_attachment_url($social_id));
         }
     }
 
@@ -272,6 +267,39 @@ function bahrpu_grant_upload_cap(array $allcaps, array $caps): array
         $allcaps['upload_files'] = true;
     }
     return $allcaps;
+}
+
+// AVIF dönüşümünü geçici olarak devre dışı bırakarak sideload yapar (og:image JPEG kalır)
+function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc): int|WP_Error
+{
+    $no_avif = function( array $formats ): array {
+        // image/jpeg → image/jpeg kalır; AVIF çıktısını engelle
+        foreach ( $formats as $src => $out ) {
+            if ( $out === 'image/avif' ) {
+                unset( $formats[ $src ] );
+            }
+        }
+        return $formats;
+    };
+
+    add_filter( 'image_editor_output_format', $no_avif, 999 );
+    $result = bahrpu_sideload_image( $url, $post_id, $desc );
+    remove_filter( 'image_editor_output_format', $no_avif, 999 );
+
+    return $result;
+}
+
+// og:image için Pexels/Unsplash URL'ini küçük JPEG'e çevirir (1200px, fm=jpg)
+function bahrpu_social_image_url(string $url): string
+{
+    $host = parse_url($url, PHP_URL_HOST) ?? '';
+    if (str_contains($host, 'pexels.com')) {
+        return add_query_arg(['fm' => 'jpg', 'w' => '1200'], $url);
+    }
+    if (str_contains($host, 'unsplash.com')) {
+        return add_query_arg(['fm' => 'jpg', 'w' => '1200', 'auto' => 'format'], $url);
+    }
+    return $url;
 }
 
 function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_Error
