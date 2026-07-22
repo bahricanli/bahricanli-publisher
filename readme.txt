@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.7.0
+Stable tag:        1.8.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,11 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.8.0 =
+* Feat: og:image için ayrı küçük JPEG sideload — `original_image_url` parametresi Pexels/Unsplash'tan `fm=jpg&w=1200` ile JPEG olarak indirilir, webp-uploads AVIF dönüşümü o yükleme için geçici devre dışı bırakılır, WP URL'i `_cm_social_image_url` post meta'ya kaydedilir.
+* Fix: update handler'da `$_POST` değişkenleri `fastcgi_finish_request` öncesinde okunuyor.
+* Chore: `.jpeg` uzantısı `.jpg`'ye normalize edildi.
 
 = 1.7.0 =
 * Feat: `bahrpu_fix_images` AJAX action now returns `featured_image_url` in the response, enabling the content manager to retrieve the sideloaded image URL directly without a separate REST API call.
