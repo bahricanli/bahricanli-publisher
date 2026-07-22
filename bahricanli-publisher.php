@@ -185,6 +185,19 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
+    // Orijinal görsel (JPEG/PNG) sosyal medya paylaşımları için ayrıca yüklenir.
+    // X ve LinkedIn AVIF formatını desteklemediğinden featured_image yerine bu kullanılır.
+    $original_image_url = sanitize_url($params['original_image_url'] ?? '');
+    if ($original_image_url && $original_image_url !== $featured_image_url) {
+        $orig_attachment_id = bahrpu_sideload_image($original_image_url, $post_id, $title);
+        if ($orig_attachment_id && ! is_wp_error($orig_attachment_id)) {
+            $orig_url = wp_get_attachment_url($orig_attachment_id);
+            if ($orig_url) {
+                update_post_meta($post_id, '_cm_social_image_url', $orig_url);
+            }
+        }
+    }
+
     return new WP_REST_Response([
         'post_id'  => $post_id,
         'post_url' => get_permalink($post_id),
@@ -224,11 +237,24 @@ function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
         bahrpu_set_seo_meta_description($post_id, sanitize_textarea_field($params['excerpt']));
     }
 
+    $title = get_the_title($post_id);
+
     if (! empty($params['featured_image'])) {
-        $title         = get_the_title($post_id);
         $attachment_id = bahrpu_sideload_image(sanitize_url($params['featured_image']), $post_id, $title);
         if ($attachment_id && ! is_wp_error($attachment_id)) {
             set_post_thumbnail($post_id, $attachment_id);
+        }
+    }
+
+    $original_image_url = sanitize_url($params['original_image_url'] ?? '');
+    $featured_image_url = sanitize_url($params['featured_image'] ?? '');
+    if ($original_image_url && $original_image_url !== $featured_image_url) {
+        $orig_attachment_id = bahrpu_sideload_image($original_image_url, $post_id, $title);
+        if ($orig_attachment_id && ! is_wp_error($orig_attachment_id)) {
+            $orig_url = wp_get_attachment_url($orig_attachment_id);
+            if ($orig_url) {
+                update_post_meta($post_id, '_cm_social_image_url', $orig_url);
+            }
         }
     }
 
