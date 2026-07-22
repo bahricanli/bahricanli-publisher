@@ -30,7 +30,7 @@ content-manager.tr manages content for multiple WordPress sites simultaneously, 
 
 ## Development
 
-This repository is the source of truth. Releases are published to the [WordPress.org SVN repository](https://plugins.svn.wordpress.org/bahricanli-publisher/) automatically by GitHub Actions whenever a version tag (e.g. `1.6.5`) is pushed — see [`.github/workflows/deploy-wordpress-org.yml`](.github/workflows/deploy-wordpress-org.yml).
+This repository is the source of truth. Releases are published to the [WordPress.org SVN repository](https://plugins.svn.wordpress.org/bahricanli-publisher/) automatically by GitHub Actions whenever a version tag (e.g. `v1.7.0`) is pushed — see [`.github/workflows/deploy-wordpress-org.yml`](.github/workflows/deploy-wordpress-org.yml).
 
 To cut a release:
 
