@@ -489,6 +489,16 @@ function bahrpu_ajax_handler(): void
             if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
         }
 
+        // og:image için küçük JPEG — AVIF dönüşümü kapalı
+        $orig_url = sanitize_url(wp_unslash($_POST['original_image_url'] ?? ''));
+        if ($orig_url) {
+            $social_url = bahrpu_social_image_url($orig_url);
+            $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, get_the_title($post_id));
+            if ($social_id && ! is_wp_error($social_id)) {
+                update_post_meta($post_id, '_cm_social_image_url', wp_get_attachment_url($social_id));
+            }
+        }
+
         exit;
     }
 
