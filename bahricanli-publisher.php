@@ -269,22 +269,21 @@ function bahrpu_grant_upload_cap(array $allcaps, array $caps): array
     return $allcaps;
 }
 
+function bahrpu_no_avif_output( array $formats ): array {
+    foreach ( $formats as $src => $out ) {
+        if ( $out === 'image/avif' ) {
+            unset( $formats[ $src ] );
+        }
+    }
+    return $formats;
+}
+
 // AVIF dönüşümünü geçici olarak devre dışı bırakarak sideload yapar (og:image JPEG kalır)
 function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc): int|WP_Error
 {
-    $no_avif = function( array $formats ): array {
-        // image/jpeg → image/jpeg kalır; AVIF çıktısını engelle
-        foreach ( $formats as $src => $out ) {
-            if ( $out === 'image/avif' ) {
-                unset( $formats[ $src ] );
-            }
-        }
-        return $formats;
-    };
-
-    add_filter( 'image_editor_output_format', $no_avif, 999 );
+    add_filter( 'image_editor_output_format', 'bahrpu_no_avif_output', 999 );
     $result = bahrpu_sideload_image( $url, $post_id, $desc );
-    remove_filter( 'image_editor_output_format', $no_avif, 999 );
+    remove_filter( 'image_editor_output_format', 'bahrpu_no_avif_output', 999 );
 
     return $result;
 }
