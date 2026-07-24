@@ -191,7 +191,10 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
         $social_url = bahrpu_social_image_url($original_image_url);
         $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $title);
         if ($social_id && ! is_wp_error($social_id)) {
-            update_post_meta($post_id, '_cm_social_image_url', wp_get_attachment_url($social_id));
+            $social_url_saved = wp_get_attachment_url($social_id);
+            update_post_meta($post_id, '_cm_social_image_url', $social_url_saved);
+            update_post_meta($post_id, '_yoast_wpseo_opengraph-image', $social_url_saved);
+            update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $social_id);
         }
     }
 
@@ -249,7 +252,10 @@ function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
         $social_url = bahrpu_social_image_url($original_image_url);
         $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $title);
         if ($social_id && ! is_wp_error($social_id)) {
-            update_post_meta($post_id, '_cm_social_image_url', wp_get_attachment_url($social_id));
+            $social_url_saved = wp_get_attachment_url($social_id);
+            update_post_meta($post_id, '_cm_social_image_url', $social_url_saved);
+            update_post_meta($post_id, '_yoast_wpseo_opengraph-image', $social_url_saved);
+            update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $social_id);
         }
     }
 
@@ -537,7 +543,10 @@ function bahrpu_ajax_handler(): void
             $social_url = bahrpu_social_image_url($orig_url);
             $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $post_title);
             if ($social_id && ! is_wp_error($social_id)) {
-                update_post_meta($post_id, '_cm_social_image_url', wp_get_attachment_url($social_id));
+                $social_url_saved = wp_get_attachment_url($social_id);
+            update_post_meta($post_id, '_cm_social_image_url', $social_url_saved);
+            update_post_meta($post_id, '_yoast_wpseo_opengraph-image', $social_url_saved);
+            update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $social_id);
             }
         }
 
