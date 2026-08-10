@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.9.0
+Stable tag:        1.9.2
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,7 +49,7 @@ Each site in a Multisite network needs the plugin activated individually with it
 
 = What image formats are supported for sideloading? =
 
-JPEG, PNG, WebP and GIF. The plugin detects the format from the downloaded file's MIME type, so URLs without a file extension (common with Unsplash) are handled correctly.
+JPEG, PNG, WebP, GIF and AVIF. The plugin detects the format from the downloaded file's MIME type, so URLs without a file extension (common with Unsplash) are handled correctly. Featured images sideloaded via the `fix_images` action are always stored as JPEG to ensure compatibility with social media platforms (Instagram, Bluesky) that do not accept AVIF.
 
 == External Services ==
 
@@ -66,6 +66,12 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.9.2 =
+* Fix: `bahrpu_fix_images` handler'da featured image artık `bahrpu_sideload_image_as_jpeg` ile kaydediliyor — WordPress'in AVIF'e dönüştürmesi engelleniyor. Instagram ve Bluesky gibi platformlar AVIF formatını kabul etmediğinden bu değişiklik sosyal medya paylaşımlarında görsel hatalarını ortadan kaldırıyor.
+
+= 1.9.1 =
+* (internal) No functional change.
 
 = 1.9.0 =
 * Feat: Ayarlar sayfasına "Güncelleme Kontrolü" butonu eklendi — tıklanınca update_plugins önbelleği temizlenir ve WordPress.org'dan güncel sürüm bilgisi çekilir.
