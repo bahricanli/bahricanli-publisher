@@ -668,7 +668,9 @@ function bahrpu_fix_images_handler(): void
     $new_featured_url = null;
     $featured_url = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
     if ($featured_url && ! bahrpu_is_local_url($featured_url, $site_host)) {
-        $att_id = bahrpu_sideload_image($featured_url, $post_id, $post->post_title);
+        // JPEG olarak sideload et — WP'nin AVIF'e dönüştürmesini önle
+        // (Instagram/Bluesky gibi platformlar AVIF kabul etmez)
+        $att_id = bahrpu_sideload_image_as_jpeg($featured_url, $post_id, $post->post_title);
         if ($att_id && ! is_wp_error($att_id)) {
             set_post_thumbnail($post_id, $att_id);
             $new_featured_url = wp_get_attachment_url($att_id);
