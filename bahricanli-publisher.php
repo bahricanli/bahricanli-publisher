@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.9.2
+ * Version:     1.9.3
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -275,42 +275,55 @@ function bahrpu_grant_upload_cap(array $allcaps, array $caps): array
     return $allcaps;
 }
 
-// AVIF dönüşümünü engelleyen filtreler
-function bahrpu_no_avif_output( array $formats ): array {
-    return array_filter( $formats, fn( $v ) => $v !== 'image/avif' );
+// Sosyal medya için AVIF ve WebP dönüşümünü engelleyen filtreler
+// (Instagram/Bluesky AVIF ve WebP kabul etmez — JPEG gerektirir)
+function bahrpu_no_avif_webp_output( array $formats ): array {
+    return array_filter( $formats, fn( $v ) => ! in_array( $v, [ 'image/avif', 'image/webp' ], true ) );
 }
-// webp-uploads eklentisi için: transform listesinden AVIF'i çıkar, sadece JPEG bırak
-function bahrpu_no_avif_mime_transforms( array $transforms ): array {
+// webp-uploads eklentisi için: transform listesinden AVIF ve WebP'yi çıkar, sadece JPEG bırak
+function bahrpu_no_avif_webp_mime_transforms( array $transforms ): array {
+    $blocked = [ 'image/avif', 'image/webp' ];
     foreach ( $transforms as $src_mime => &$targets ) {
-        $targets = array_filter( $targets, fn( $t ) => ( $t['mime-type'] ?? $t ) !== 'image/avif' );
+        $targets = array_filter( $targets, fn( $t ) => ! in_array( $t['mime-type'] ?? $t, $blocked, true ) );
     }
     return $transforms;
 }
 
-// Sideload yapar; attachment AVIF olursa GD ile JPEG'e dönüştürür ve attachment günceller
+// Sideload yapar; attachment AVIF veya WebP olursa GD ile JPEG'e dönüştürür ve attachment günceller
 function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc): int|WP_Error
 {
-    // WP core + webp-uploads/performance-lab eklentisinin AVIF dönüşümünü geçici kapat
-    add_filter( 'image_editor_output_format',          'bahrpu_no_avif_output',           999 );
-    add_filter( 'webp_uploads_upload_image_mime_transforms', 'bahrpu_no_avif_mime_transforms', 999 );
+    // WP core + webp-uploads/performance-lab eklentisinin AVIF/WebP dönüşümünü geçici kapat
+    add_filter( 'image_editor_output_format',               'bahrpu_no_avif_webp_output',           999 );
+    add_filter( 'webp_uploads_upload_image_mime_transforms', 'bahrpu_no_avif_webp_mime_transforms', 999 );
 
     $id = bahrpu_sideload_image( $url, $post_id, $desc );
 
-    remove_filter( 'image_editor_output_format',          'bahrpu_no_avif_output',           999 );
-    remove_filter( 'webp_uploads_upload_image_mime_transforms', 'bahrpu_no_avif_mime_transforms', 999 );
+    remove_filter( 'image_editor_output_format',               'bahrpu_no_avif_webp_output',           999 );
+    remove_filter( 'webp_uploads_upload_image_mime_transforms', 'bahrpu_no_avif_webp_mime_transforms', 999 );
 
     if ( is_wp_error( $id ) ) {
         return $id;
     }
 
-    // Yine de AVIF olduysa (WP zorla çevirdiyse) GD ile JPEG'e dönüştür
+    // Yine de AVIF veya WebP olduysa (WP zorla çevirdiyse) GD ile JPEG'e dönüştür
     $path = get_attached_file( $id );
-    if ( $path && preg_match( '/\.avif$/i', $path ) && function_exists( 'imagecreatefromavif' ) ) {
-        $img      = @imagecreatefromavif( $path );
-        $jpg_path = preg_replace( '/\.avif$/i', '.jpg', $path );
+    if ( ! $path ) {
+        return $id;
+    }
+
+    $gd_loaders = [
+        'avif' => function_exists( 'imagecreatefromavif' ) ? 'imagecreatefromavif' : null,
+        'webp' => function_exists( 'imagecreatefromwebp' ) ? 'imagecreatefromwebp' : null,
+    ];
+
+    foreach ( $gd_loaders as $ext => $loader ) {
+        if ( ! $loader || ! preg_match( '/\.' . $ext . '$/i', $path ) ) {
+            continue;
+        }
+        $img      = @$loader( $path );
+        $jpg_path = preg_replace( '/\.' . $ext . '$/i', '.jpg', $path );
         if ( $img && imagejpeg( $img, $jpg_path, 90 ) ) {
             imagedestroy( $img );
-            // Eski AVIF dosyasını sil, yeni JPEG'i kaydet
             @unlink( $path );
             update_attached_file( $id, $jpg_path );
             wp_update_post( [ 'ID' => $id, 'post_mime_type' => 'image/jpeg' ] );
@@ -321,6 +334,7 @@ function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc):
                 )
             );
         }
+        break;
     }
 
     return $id;
