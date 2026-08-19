@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.9.3
+Stable tag:        1.9.4
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,11 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.9.4 =
+* Fix: Plugin Check tarafından bulunan sorunlar giderildi — `parse_url()` yerine `wp_parse_url()`, `unlink()` yerine `wp_delete_file()` kullanılıyor.
+* Fix: Token-doğrulamalı AJAX endpoint'lerinde ($_POST/$_SERVER okumaları) eksik `wp_unslash()`/`sanitize_*()` çağrıları tamamlandı.
+* Dev: `deploy.sh` dağıtım paketinden (`.distignore`) hariç tutuldu.
 
 = 1.9.3 =
 * Fix: `bahrpu_sideload_image_as_jpeg` artık WebP'yi de JPEG'e dönüştürüyor. `image_editor_output_format` ve `webp_uploads_upload_image_mime_transforms` filtreleri WebP'yi de engelleyecek şekilde güncellendi. Instagram ve Bluesky AVIF ve WebP kabul etmiyor.

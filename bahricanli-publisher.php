@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.9.3
+ * Version:     1.9.4
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -324,7 +324,7 @@ function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc):
         $jpg_path = preg_replace( '/\.' . $ext . '$/i', '.jpg', $path );
         if ( $img && imagejpeg( $img, $jpg_path, 90 ) ) {
             imagedestroy( $img );
-            @unlink( $path );
+            wp_delete_file( $path );
             update_attached_file( $id, $jpg_path );
             wp_update_post( [ 'ID' => $id, 'post_mime_type' => 'image/jpeg' ] );
             update_post_meta( $id, '_wp_attachment_metadata',
@@ -343,7 +343,7 @@ function bahrpu_sideload_image_as_jpeg(string $url, int $post_id, string $desc):
 // og:image için Pexels/Unsplash URL'ini küçük JPEG'e çevirir (1200px, fm=jpg)
 function bahrpu_social_image_url(string $url): string
 {
-    $host = parse_url($url, PHP_URL_HOST) ?? '';
+    $host = wp_parse_url($url, PHP_URL_HOST) ?? '';
     if (str_contains($host, 'pexels.com')) {
         return add_query_arg(['fm' => 'jpg', 'w' => '1200'], $url);
     }
@@ -373,7 +373,7 @@ function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_
         return media_sideload_image($url, $post_id, $desc, 'id');
     }
 
-    $basename = basename(parse_url($url, PHP_URL_PATH)) ?: 'image';
+    $basename = basename(wp_parse_url($url, PHP_URL_PATH)) ?: 'image';
     // Uzantı yoksa MIME'den belirle (Unsplash gibi uzantısız URL'ler için)
     if (! pathinfo($basename, PATHINFO_EXTENSION)) {
         $mime_type = mime_content_type($tmp);
@@ -393,7 +393,7 @@ function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_
     ];
 
     $id = media_handle_sideload($file_array, $post_id, $desc);
-    @unlink($tmp);
+    wp_delete_file($tmp);
 
     if ($filter_added) {
         remove_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10);
@@ -487,9 +487,9 @@ function bahrpu_respond_now(array $data, int $status = 200): void
         $body = wp_json_encode($data);
         header('Content-Length: ' . strlen($body));
         header('Connection: close');
-        echo $body;
+        echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON API response (Content-Type: application/json set above), not HTML output.
     } else {
-        echo wp_json_encode($data);
+        echo wp_json_encode($data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON API response, not HTML output.
     }
 
     if (function_exists('fastcgi_finish_request')) {
@@ -503,7 +503,7 @@ function bahrpu_respond_now(array $data, int $status = 200): void
 
     // İstemci bağlantıyı kapatsa/timeout olsa bile arka plandaki görsel işlemi tamamlansın.
     ignore_user_abort(true);
-    @set_time_limit(60);
+    @set_time_limit(60); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- background image sideload after fastcgi_finish_request needs more than the default execution limit.
 }
 
 function bahrpu_ajax_handler(): void
@@ -514,21 +514,26 @@ function bahrpu_ajax_handler(): void
         require_once ABSPATH . 'wp-admin/includes/image.php';
     }
 
+    // phpcs:disable WordPress.Security.NonceVerification.Missing -- authenticated via shared-secret
+    // token (see bahrpu_check_token) sent by content-manager.tr, not a browser session; there is
+    // no WP nonce to verify against a server-to-server API call.
     $token    = get_option(BAHRPU_TOKEN_OPTION, '');
-    $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
+    $incoming = isset($_POST['_cm_token'])
+        ? sanitize_text_field(wp_unslash($_POST['_cm_token']))
+        : sanitize_text_field(wp_unslash($_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? ''));
 
-    if (empty($token) || ! hash_equals($token, (string) $incoming)) {
+    if (empty($token) || ! hash_equals($token, $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
 
     $action = sanitize_key($_POST['cm_action'] ?? 'create');
 
     if ($action === 'update' && ! empty($_POST['post_id'])) {
-        $post_id     = (int) $_POST['post_id'];
+        $post_id     = (int) wp_unslash($_POST['post_id']);
         $update_data = ['ID' => $post_id];
-        if (! empty($_POST['title']))   $update_data['post_title']   = sanitize_text_field($_POST['title']);
+        if (! empty($_POST['title']))   $update_data['post_title']   = sanitize_text_field(wp_unslash($_POST['title']));
         if (! empty($_POST['content'])) $update_data['post_content'] = wp_kses_post(wp_unslash($_POST['content']));
-        if (! empty($_POST['excerpt'])) $update_data['post_excerpt'] = sanitize_textarea_field($_POST['excerpt']);
+        if (! empty($_POST['excerpt'])) $update_data['post_excerpt'] = sanitize_textarea_field(wp_unslash($_POST['excerpt']));
 
         $result = wp_update_post($update_data, true);
         if (is_wp_error($result)) {
@@ -536,7 +541,7 @@ function bahrpu_ajax_handler(): void
         }
 
         if (! empty($_POST['excerpt'])) {
-            bahrpu_set_seo_meta_description($post_id, sanitize_textarea_field($_POST['excerpt']));
+            bahrpu_set_seo_meta_description($post_id, sanitize_textarea_field(wp_unslash($_POST['excerpt'])));
         }
 
         // $_POST'u bahrpu_respond_now öncesinde oku — fastcgi_finish_request sonrası kaybolabilir
@@ -567,18 +572,19 @@ function bahrpu_ajax_handler(): void
         exit;
     }
 
-    $title   = sanitize_text_field($_POST['title']   ?? '');
-    $content = wp_kses_post(wp_unslash($_POST['content'] ?? ''));
-    $excerpt = sanitize_textarea_field($_POST['excerpt'] ?? '');
-    $slug    = sanitize_title($_POST['slug'] ?? $title);
-    $status  = in_array($_POST['status'] ?? 'draft', ['publish', 'draft', 'pending'], true)
-               ? $_POST['status'] : 'draft';
+    $title      = sanitize_text_field(wp_unslash($_POST['title']   ?? ''));
+    $content    = wp_kses_post(wp_unslash($_POST['content'] ?? ''));
+    $excerpt    = sanitize_textarea_field(wp_unslash($_POST['excerpt'] ?? ''));
+    $slug       = sanitize_title(wp_unslash($_POST['slug'] ?? $title));
+    $status_raw = sanitize_key(wp_unslash($_POST['status'] ?? 'draft'));
+    $status     = in_array($status_raw, ['publish', 'draft', 'pending'], true) ? $status_raw : 'draft';
 
     if (empty($title) || empty($content)) {
         wp_send_json(['error' => 'title ve content zorunlu'], 400);
     }
 
     $category_ids = [];
+    // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each $cat_name is sanitized below, before use.
     foreach (json_decode(wp_unslash($_POST['categories'] ?? '[]'), true) ?: [] as $cat_name) {
         $cat_name = sanitize_text_field($cat_name);
         $term     = term_exists($cat_name, 'category') ?: wp_insert_term($cat_name, 'category');
@@ -586,6 +592,7 @@ function bahrpu_ajax_handler(): void
     }
 
     $tag_ids = [];
+    // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each $tag_name is sanitized below, before use.
     foreach (json_decode(wp_unslash($_POST['tags'] ?? '[]'), true) ?: [] as $tag_name) {
         $tag_name = sanitize_text_field($tag_name);
         $term     = term_exists($tag_name, 'post_tag') ?: wp_insert_term($tag_name, 'post_tag');
@@ -623,6 +630,7 @@ function bahrpu_ajax_handler(): void
 
     exit;
 }
+// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 // ─── Silme AJAX ──────────────────────────────────────────────────────────────
 
@@ -631,13 +639,17 @@ add_action('wp_ajax_bahrpu_delete',        'bahrpu_delete_handler');
 
 function bahrpu_delete_handler(): void
 {
+    // phpcs:disable WordPress.Security.NonceVerification.Missing -- authenticated via shared-secret
+    // token (see bahrpu_check_token), not a browser session; no WP nonce applies to a server-to-server call.
     $token    = get_option(BAHRPU_TOKEN_OPTION, '');
-    $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
-    if (empty($token) || ! hash_equals($token, (string) $incoming)) {
+    $incoming = isset($_POST['_cm_token'])
+        ? sanitize_text_field(wp_unslash($_POST['_cm_token']))
+        : sanitize_text_field(wp_unslash($_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? ''));
+    if (empty($token) || ! hash_equals($token, $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
 
-    $post_id = (int) ($_POST['post_id'] ?? 0);
+    $post_id = isset($_POST['post_id']) ? (int) wp_unslash($_POST['post_id']) : 0;
     if (! $post_id || ! get_post($post_id)) {
         wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
     }
@@ -649,6 +661,7 @@ function bahrpu_delete_handler(): void
         wp_send_json(['error' => 'Silinemedi'], 500);
     }
 }
+// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 // ─── Görsel Düzeltme AJAX ────────────────────────────────────────────────────
 
@@ -663,19 +676,23 @@ function bahrpu_fix_images_handler(): void
         require_once ABSPATH . 'wp-admin/includes/image.php';
     }
 
+    // phpcs:disable WordPress.Security.NonceVerification.Missing -- authenticated via shared-secret
+    // token (see bahrpu_check_token), not a browser session; no WP nonce applies to a server-to-server call.
     $token    = get_option(BAHRPU_TOKEN_OPTION, '');
-    $incoming = $_POST['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
-    if (empty($token) || ! hash_equals($token, (string) $incoming)) {
+    $incoming = isset($_POST['_cm_token'])
+        ? sanitize_text_field(wp_unslash($_POST['_cm_token']))
+        : sanitize_text_field(wp_unslash($_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? ''));
+    if (empty($token) || ! hash_equals($token, $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
 
-    $post_id = (int) ($_POST['post_id'] ?? 0);
+    $post_id = isset($_POST['post_id']) ? (int) wp_unslash($_POST['post_id']) : 0;
     $post    = get_post($post_id);
     if (! $post) {
         wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
     }
 
-    $site_host = parse_url(get_site_url(), PHP_URL_HOST);
+    $site_host = wp_parse_url(get_site_url(), PHP_URL_HOST);
     $fixed     = 0;
     $errors    = [];
 
@@ -724,11 +741,12 @@ function bahrpu_fix_images_handler(): void
         'featured_image_url' => $new_featured_url,
     ]);
 }
+// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 function bahrpu_is_local_url(string $url, string $site_host): bool
 {
     if (str_starts_with($url, '/')) return true;
-    $host = parse_url($url, PHP_URL_HOST);
+    $host = wp_parse_url($url, PHP_URL_HOST);
     return $host === $site_host || str_ends_with($host, '.' . $site_host);
 }
 
@@ -741,11 +759,21 @@ function bahrpu_version_handler(): void
 {
     global $wp_version;
 
-    $token    = get_option(BAHRPU_TOKEN_OPTION, '');
-    $incoming = $_POST['_cm_token'] ?? $_GET['_cm_token'] ?? $_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? '';
-    if (empty($token) || ! hash_equals($token, (string) $incoming)) {
+    // phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+    // -- authenticated via shared-secret token (see bahrpu_check_token), not a browser session;
+    // no WP nonce applies to a server-to-server call.
+    $token = get_option(BAHRPU_TOKEN_OPTION, '');
+    if (isset($_POST['_cm_token'])) {
+        $incoming = sanitize_text_field(wp_unslash($_POST['_cm_token']));
+    } elseif (isset($_GET['_cm_token'])) {
+        $incoming = sanitize_text_field(wp_unslash($_GET['_cm_token']));
+    } else {
+        $incoming = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_CONTENT_MANAGER_TOKEN'] ?? ''));
+    }
+    if (empty($token) || ! hash_equals($token, $incoming)) {
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
+    // phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
 
     // En son WP versiyonunu api.wordpress.org'dan çek (bkz. readme.txt — External Services)
     $latest   = null;
@@ -779,7 +807,7 @@ function bahrpu_settings_page(): void
     if (isset($_POST['bahrpu_token'])) {
         check_admin_referer('bahrpu_save_token');
         update_option(BAHRPU_TOKEN_OPTION, sanitize_text_field(wp_unslash($_POST['bahrpu_token'])));
-        update_option(BAHRPU_AUTHOR_OPTION, (int) ($_POST['bahrpu_author'] ?? 0));
+        update_option(BAHRPU_AUTHOR_OPTION, isset($_POST['bahrpu_author']) ? (int) wp_unslash($_POST['bahrpu_author']) : 0);
         echo '<div class="notice notice-success"><p>Ayarlar kaydedildi.</p></div>';
     }
 
