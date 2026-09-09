@@ -1,0 +1,21 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"preferredVersions": {
+		"php": "8.2",
+		"wp": "latest"
+	},
+	"landingPage": "/wp-admin/options-general.php?page=bahricanli-publisher",
+	"login": true,
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "bahricanli-publisher"
+			},
+			"options": {
+				"activate": true
+			}
+		}
+	]
+}
