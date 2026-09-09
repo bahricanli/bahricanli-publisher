@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.10.0
+ * Version:     1.11.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -810,6 +810,72 @@ function bahrpu_version_handler(): void
     ]);
 }
 
+/**
+ * Ayarlar sayfasındaki "Bağlantıyı Test Et" butonu — kayıtlı token'ı, content-manager.tr'nin
+ * yaptığı gerçek isteği birebir simüle ederek doğrular: kendi admin-ajax.php'sine bir taslak
+ * test yazısı oluşturur, sonra hemen siler. WP admin oturumu + nonce ile korunur (dıştan
+ * erişilemez); token doğrulaması ayrıca bahrpu_post/bahrpu_delete içinde de gerçekleşir.
+ */
+add_action('wp_ajax_bahrpu_test_connection', 'bahrpu_test_connection_handler');
+
+function bahrpu_test_connection_handler(): void
+{
+    check_ajax_referer('bahrpu_test_connection', 'nonce');
+
+    if (! current_user_can('manage_options')) {
+        wp_send_json(['ok' => false, 'message' => 'Bu işlem için yetkiniz yok.'], 403);
+    }
+
+    $token = get_option(BAHRPU_TOKEN_OPTION, '');
+    if (empty($token)) {
+        wp_send_json(['ok' => false, 'message' => 'Önce bir API token girip kaydedin.']);
+    }
+
+    $ajax_url = admin_url('admin-ajax.php');
+
+    $create = wp_remote_post($ajax_url, [
+        'timeout' => 20,
+        'body'    => [
+            'action'    => 'bahrpu_post',
+            '_cm_token' => $token,
+            'title'     => 'BahriCanli Publisher Bağlantı Testi',
+            'content'   => '<p>Bu, ayarlar sayfasından tetiklenen otomatik bir bağlantı testidir. Kendiliğinden silinir.</p>',
+            'status'    => 'draft',
+        ],
+    ]);
+
+    if (is_wp_error($create)) {
+        wp_send_json(['ok' => false, 'message' => 'İstek gönderilemedi: ' . $create->get_error_message()]);
+    }
+
+    $create_body = json_decode(wp_remote_retrieve_body($create), true);
+    $create_code = wp_remote_retrieve_response_code($create);
+
+    if ($create_code !== 201 || empty($create_body['post_id'])) {
+        $err = $create_body['error'] ?? ('beklenmeyen yanıt, HTTP ' . $create_code);
+        wp_send_json(['ok' => false, 'message' => 'Test yazısı oluşturulamadı: ' . $err]);
+    }
+
+    $post_id = (int) $create_body['post_id'];
+
+    $delete  = wp_remote_post($ajax_url, [
+        'timeout' => 20,
+        'body'    => [
+            'action'    => 'bahrpu_delete',
+            '_cm_token' => $token,
+            'post_id'   => $post_id,
+        ],
+    ]);
+    $deleted = ! is_wp_error($delete) && wp_remote_retrieve_response_code($delete) === 200;
+
+    wp_send_json([
+        'ok'      => true,
+        'message' => $deleted
+            ? "Bağlantı başarılı — test yazısı oluşturuldu ve temizlendi (ID: {$post_id})."
+            : "Bağlantı başarılı ama test yazısı silinemedi (ID: {$post_id}) — Yazılar listesinden elle silin.",
+    ]);
+}
+
 // ─── Ayarlar Sayfası ─────────────────────────────────────────────────────────
 
 add_action('admin_menu', function () {
@@ -882,9 +948,47 @@ function bahrpu_settings_page(): void
                         <p class="description">Bu URL'yi content-manager.tr ayarlarına girin.</p>
                     </td>
                 </tr>
+                <tr>
+                    <th>Bağlantı Testi</th>
+                    <td>
+                        <button type="button" id="bahrpu-test-btn" class="button">Bağlantıyı Test Et</button>
+                        <span id="bahrpu-test-result" style="margin-left:10px;"></span>
+                        <p class="description">Kayıtlı token ile gerçek bir istek gönderir: taslak bir test yazısı oluşturur ve hemen siler. Önce değişikliği <strong>Kaydet</strong>.</p>
+                    </td>
+                </tr>
             </table>
             <?php submit_button('Kaydet'); ?>
         </form>
+
+        <script>
+        (function () {
+            var btn    = document.getElementById('bahrpu-test-btn');
+            var result = document.getElementById('bahrpu-test-result');
+            if (! btn) return;
+
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                result.style.color = '';
+                result.textContent = 'Test ediliyor…';
+
+                var body = new URLSearchParams();
+                body.append('action', 'bahrpu_test_connection');
+                body.append('nonce', '<?php echo esc_js(wp_create_nonce('bahrpu_test_connection')); ?>');
+
+                fetch(ajaxurl, { method: 'POST', credentials: 'same-origin', body: body })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        result.textContent = data && data.message ? data.message : 'Bilinmeyen yanıt.';
+                        result.style.color = data && data.ok ? '#008a20' : '#b32d2e';
+                    })
+                    .catch(function (e) {
+                        result.style.color = '#b32d2e';
+                        result.textContent = 'İstek başarısız: ' + e.message;
+                    })
+                    .finally(function () { btn.disabled = false; });
+            });
+        })();
+        </script>
 
         <hr>
         <h2>Güncelleme Kontrolü</h2>
