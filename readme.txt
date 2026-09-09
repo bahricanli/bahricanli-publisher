@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.11.0
+Stable tag:        1.11.1
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,9 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.11.1 =
+* Dev: WordPress Playground blueprint eklendi — eklenti dizini sayfasındaki "Live Preview" butonu artık eklenti kurulu ve etkin bir demo ortamı açıyor.
 
 = 1.11.0 =
 * New: Ayarlar sayfasına "Bağlantıyı Test Et" butonu eklendi. Kayıtlı token ile gerçek bir istek gönderir — taslak bir test yazısı oluşturur ve hemen siler — böylece content-manager.tr'nin karşılaşacağı hatayı kaydetmeden önce görebilirsiniz.
