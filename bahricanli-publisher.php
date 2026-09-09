@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.9.4
+ * Version:     1.10.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -131,6 +131,9 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
     $status  = in_array($params['status'] ?? 'draft', ['publish', 'draft', 'pending'], true)
                ? $params['status']
                : 'draft';
+    $post_type = in_array($params['post_type'] ?? 'post', ['post', 'page'], true)
+               ? $params['post_type']
+               : 'post';
 
     if (empty($title) || empty($content)) {
         return new WP_REST_Response(['error' => 'title ve content zorunlu'], 400);
@@ -160,16 +163,20 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
-    $post_id = wp_insert_post([
+    $insert = [
+        'post_type'     => $post_type,
         'post_title'    => $title,
         'post_content'  => $content,
         'post_excerpt'  => $excerpt,
         'post_name'     => $slug,
         'post_status'   => $status,
         'post_author'   => bahrpu_resolve_author_id(),
-        'post_category' => $category_ids ?: [1],
-        'tags_input'    => $tag_ids,
-    ], true);
+    ];
+    if ($post_type === 'post') {
+        $insert['post_category'] = $category_ids ?: [1];
+        $insert['tags_input']   = $tag_ids;
+    }
+    $post_id = wp_insert_post($insert, true);
 
     if (is_wp_error($post_id)) {
         return new WP_REST_Response(['error' => $post_id->get_error_message()], 500);
@@ -224,6 +231,9 @@ function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
     }
     if (! empty($params['excerpt'])) {
         $update_data['post_excerpt'] = sanitize_textarea_field($params['excerpt']);
+    }
+    if (! empty($params['post_type']) && in_array($params['post_type'], ['post', 'page'], true)) {
+        $update_data['post_type'] = $params['post_type'];
     }
 
     if (count($update_data) > 1) {
@@ -534,6 +544,10 @@ function bahrpu_ajax_handler(): void
         if (! empty($_POST['title']))   $update_data['post_title']   = sanitize_text_field(wp_unslash($_POST['title']));
         if (! empty($_POST['content'])) $update_data['post_content'] = wp_kses_post(wp_unslash($_POST['content']));
         if (! empty($_POST['excerpt'])) $update_data['post_excerpt'] = sanitize_textarea_field(wp_unslash($_POST['excerpt']));
+        if (! empty($_POST['post_type'])) {
+            $pt = sanitize_key(wp_unslash($_POST['post_type']));
+            if (in_array($pt, ['post', 'page'], true)) $update_data['post_type'] = $pt;
+        }
 
         $result = wp_update_post($update_data, true);
         if (is_wp_error($result)) {
@@ -578,6 +592,8 @@ function bahrpu_ajax_handler(): void
     $slug       = sanitize_title(wp_unslash($_POST['slug'] ?? $title));
     $status_raw = sanitize_key(wp_unslash($_POST['status'] ?? 'draft'));
     $status     = in_array($status_raw, ['publish', 'draft', 'pending'], true) ? $status_raw : 'draft';
+    $type_raw   = sanitize_key(wp_unslash($_POST['post_type'] ?? 'post'));
+    $post_type  = in_array($type_raw, ['post', 'page'], true) ? $type_raw : 'post';
 
     if (empty($title) || empty($content)) {
         wp_send_json(['error' => 'title ve content zorunlu'], 400);
@@ -599,16 +615,20 @@ function bahrpu_ajax_handler(): void
         if (! is_wp_error($term)) $tag_ids[] = (int)(is_array($term) ? $term['term_id'] : $term);
     }
 
-    $post_id = wp_insert_post([
+    $insert = [
+        'post_type'     => $post_type,
         'post_title'    => $title,
         'post_content'  => $content,
         'post_excerpt'  => $excerpt,
         'post_name'     => $slug,
         'post_status'   => $status,
         'post_author'   => bahrpu_resolve_author_id(),
-        'post_category' => $category_ids ?: [1],
-        'tags_input'    => $tag_ids,
-    ], true);
+    ];
+    if ($post_type === 'post') {
+        $insert['post_category'] = $category_ids ?: [1];
+        $insert['tags_input']   = $tag_ids;
+    }
+    $post_id = wp_insert_post($insert, true);
 
     if (is_wp_error($post_id)) {
         wp_send_json(['error' => $post_id->get_error_message()], 500);
