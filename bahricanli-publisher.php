@@ -3,7 +3,7 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.11.1
+ * Version:     1.12.0
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
  * License:     GPL-2.0-or-later
@@ -98,6 +98,86 @@ function bahrpu_set_seo_meta_description(int $post_id, string $excerpt): void
     }
 
     update_post_meta($post_id, '_yoast_wpseo_metadesc', $excerpt);
+}
+
+/**
+ * Sitedeki sayfa önbelleği eklentilerinin önbelleğini temizler.
+ *
+ * Neden gerekli: cache eklentileri (ör. WP Fastest Cache) yazıyı yalnızca
+ * `transition_post_status` anında temizliyor; öne çıkan görsel ise yanıt
+ * gönderildikten sonra arka planda ekleniyor. Bu aradaki ziyaret ana sayfayı,
+ * kategori sayfalarını ve yazının kendisini eksik/eski haliyle yeniden önbelleğe
+ * alıyordu. Ayrıca "yeni yazıda önbelleği temizle" ayarı kapalı olan sitelerde
+ * yeni yazı hiç görünmüyordu. Tüm işlemler bittikten sonra açıkça temizliyoruz.
+ *
+ * Yalnızca yayındaki yazılar için çalışır (taslaklar ziyaretçiye görünmez).
+ * $post_id = 0 verilirse (ör. silme sonrası) tüm site önbelleği temizlenir.
+ */
+function bahrpu_purge_caches(int $post_id = 0): void
+{
+    if ($post_id > 0) {
+        $status = get_post_status($post_id);
+        if ($status !== 'publish') {
+            return;
+        }
+        clean_post_cache($post_id);
+    }
+
+    // WP Fastest Cache — ana sayfa, arşivler ve feed'ler de etkilendiği için tümü
+    do_action('wpfc_clear_all_cache', false);
+
+    // WP Rocket
+    if ($post_id > 0 && function_exists('rocket_clean_post')) {
+        rocket_clean_post($post_id);
+        if (function_exists('rocket_clean_home')) {
+            rocket_clean_home();
+        }
+    } elseif (function_exists('rocket_clean_domain')) {
+        rocket_clean_domain();
+    }
+
+    // W3 Total Cache
+    if (function_exists('w3tc_flush_all')) {
+        w3tc_flush_all();
+    }
+
+    // WP Super Cache
+    if ($post_id > 0 && function_exists('wp_cache_post_change')) {
+        wp_cache_post_change($post_id);
+    } elseif (function_exists('wp_cache_clear_cache')) {
+        wp_cache_clear_cache();
+    }
+
+    // LiteSpeed Cache
+    if ($post_id > 0) {
+        do_action('litespeed_purge_post', $post_id);
+    } else {
+        do_action('litespeed_purge_all');
+    }
+
+    // Cache Enabler
+    if ($post_id > 0) {
+        do_action('cache_enabler_clear_page_cache_by_post', $post_id);
+    } else {
+        do_action('cache_enabler_clear_site_cache');
+    }
+
+    // SiteGround Optimizer
+    if (function_exists('sg_cachepress_purge_cache')) {
+        sg_cachepress_purge_cache();
+    }
+
+    // Breeze, Nginx Helper, Hummingbird
+    do_action('breeze_clear_all_cache');
+    do_action('rt_nginx_helper_purge_all');
+    do_action('wphb_clear_page_cache', $post_id ?: null);
+
+    /**
+     * Diğer önbellek katmanları için (ör. CDN) genişletme noktası.
+     *
+     * @param int $post_id Yazı ID'si; site geneli temizlikte 0.
+     */
+    do_action('bahrpu_after_cache_purge', $post_id);
 }
 
 function bahrpu_check_token(WP_REST_Request $request): bool
@@ -205,6 +285,8 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
         }
     }
 
+    bahrpu_purge_caches($post_id);
+
     return new WP_REST_Response([
         'post_id'  => $post_id,
         'post_url' => get_permalink($post_id),
@@ -268,6 +350,8 @@ function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
             update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $social_id);
         }
     }
+
+    bahrpu_purge_caches($post_id);
 
     return new WP_REST_Response([
         'post_id'  => $post_id,
@@ -583,6 +667,8 @@ function bahrpu_ajax_handler(): void
             }
         }
 
+        bahrpu_purge_caches($post_id);
+
         exit;
     }
 
@@ -648,6 +734,8 @@ function bahrpu_ajax_handler(): void
         if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
     }
 
+    bahrpu_purge_caches($post_id);
+
     exit;
 }
 // phpcs:enable WordPress.Security.NonceVerification.Missing
@@ -674,8 +762,12 @@ function bahrpu_delete_handler(): void
         wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
     }
 
-    $result = wp_delete_post($post_id, true);
+    $was_published = get_post_status($post_id) === 'publish';
+    $result        = wp_delete_post($post_id, true);
     if ($result) {
+        if ($was_published) {
+            bahrpu_purge_caches();
+        }
         wp_send_json(['deleted' => true, 'post_id' => $post_id]);
     } else {
         wp_send_json(['error' => 'Silinemedi'], 500);
@@ -752,6 +844,10 @@ function bahrpu_fix_images_handler(): void
 
     if ($updated_content !== $content) {
         wp_update_post(['ID' => $post_id, 'post_content' => $updated_content]);
+    }
+
+    if ($fixed > 0) {
+        bahrpu_purge_caches($post_id);
     }
 
     wp_send_json([

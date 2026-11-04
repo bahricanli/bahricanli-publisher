@@ -4,7 +4,7 @@ Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
 Tested up to:      7.0
 Requires PHP:      8.1
-Stable tag:        1.11.1
+Stable tag:        1.12.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,11 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.12.0 =
+* New: Yazı oluşturma, güncelleme, görsel düzeltme ve silme sonrasında sayfa önbelleği otomatik temizleniyor. Desteklenenler: WP Fastest Cache, WP Rocket, W3 Total Cache, WP Super Cache, LiteSpeed Cache, Cache Enabler, SiteGround Optimizer, Breeze, Nginx Helper, Hummingbird.
+* Fix: Öne çıkan görsel yanıt sonrası arka planda eklendiği için cache eklentileri ana sayfayı ve yazıyı eski haliyle önbellekte tutuyordu.
+* Dev: Ek önbellek katmanları için `bahrpu_after_cache_purge` action'ı eklendi.
 
 = 1.11.1 =
 * Dev: WordPress Playground blueprint eklendi — eklenti dizini sayfasındaki "Live Preview" butonu artık eklenti kurulu ve etkin bir demo ortamı açıyor.
