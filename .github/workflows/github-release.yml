@@ -1,0 +1,42 @@
+name: Publish GitHub Release
+
+'on':
+  push:
+    tags: ['**']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Git tag to publish
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: github-release-${{ inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || github.event.created
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish release for the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          if gh release view -- "${RELEASE_TAG}" >/dev/null 2>&1; then
+            printf 'A release already exists for %s.\n' "${RELEASE_TAG}"
+            exit 0
+          fi
+
+          release_flags=(--verify-tag --generate-notes --title "${RELEASE_TAG}")
+          if [[ "${RELEASE_TAG}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            release_flags+=(--prerelease)
+          fi
+
+          gh release create "${release_flags[@]}" -- "${RELEASE_TAG}"
