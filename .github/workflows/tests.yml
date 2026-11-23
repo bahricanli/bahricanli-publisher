@@ -45,10 +45,11 @@ jobs:
       - name: Check the plugin metadata and package files
         uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
         with:
-          checks: |
+          checks: |-
             file_type
-            plugin_header_text_domain
+            plugin_header_fields
             plugin_readme
+          exclude-files: .distignore,.gitignore,README.md,README.tr.md,CONTRIBUTING.md,CHANGELOG.md
           exclude-directories: .git,.github,.wordpress-org
 
       - name: Run REST smoke test in WordPress
