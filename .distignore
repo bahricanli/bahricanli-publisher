@@ -4,5 +4,8 @@
 .gitignore
 .wordpress-org
 README.md
+README.tr.md
+CONTRIBUTING.md
+CHANGELOG.md
 deploy.sh
 *.zip

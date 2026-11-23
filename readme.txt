@@ -2,11 +2,11 @@
 Contributors:      bmericc
 Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
-Tested up to:      7.0
+Tested up to:      7.1
 Requires PHP:      8.1
-Stable tag:        1.12.0
-License:           GPL-2.0-or-later
-License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+Stable tag:        1.12.1
+License:           GPL-3.0-or-later
+License URI:       https://www.gnu.org/licenses/gpl-3.0.html
 
 Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API.
 
@@ -25,6 +25,7 @@ Once installed and configured, the plugin allows content-manager.tr to:
 * **Auto-resize** uploaded images to a maximum width of 1600 px to keep storage lean
 
 All requests are authenticated with a shared secret token — no OAuth or WordPress login required.
+The token can manage posts and pages across the site, including content created outside the plugin.
 
 == Installation ==
 
@@ -51,6 +52,12 @@ Each site in a Multisite network needs the plugin activated individually with it
 
 JPEG, PNG, WebP, GIF and AVIF. The plugin detects the format from the downloaded file's MIME type, so URLs without a file extension (common with Unsplash) are handled correctly. Featured images sideloaded via the `fix_images` action are always stored as JPEG to ensure compatibility with social media platforms (Instagram, Bluesky) that do not accept AVIF.
 
+Each remote image download is limited to 20 MiB. WordPress validates the download URL and any redirects.
+
+= When are images available after creating a post? =
+
+The creation response confirms that the post was saved. Featured and social images may appear later. REST requests queue image processing through WP-Cron, while AJAX requests process images after sending the post ID.
+
 == External Services ==
 
 This plugin makes an outbound HTTP request to the WordPress.org API to check whether a WordPress core update is available. This request is triggered only when the `bahrpu_version` AJAX action is called by the content-manager.tr application.
@@ -66,6 +73,12 @@ This plugin makes an outbound HTTP request to the WordPress.org API to check whe
 1. Settings page — generate or enter your API token.
 
 == Changelog ==
+
+= 1.12.1 =
+* Security: Update, delete and image repair actions are limited to WordPress posts and pages.
+* Security: Remote image downloads validate URLs and redirects, enforce a 20 MiB limit and clean up temporary files.
+* Fix: REST creation uses the correct defaults and queues images through WP-Cron. AJAX creation also processes social images after sending the post ID.
+* License: GPL-3.0-or-later. The full license is included in the distribution.
 
 = 1.12.0 =
 * New: Yazı oluşturma, güncelleme, görsel düzeltme ve silme sonrasında sayfa önbelleği otomatik temizleniyor. Desteklenenler: WP Fastest Cache, WP Rocket, W3 Total Cache, WP Super Cache, LiteSpeed Cache, Cache Enabler, SiteGround Optimizer, Breeze, Nginx Helper, Hummingbird.
