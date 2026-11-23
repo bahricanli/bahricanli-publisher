@@ -3,11 +3,11 @@
  * Plugin Name: BahriCanli Publisher
  * Plugin URI:  https://content-manager.tr
  * Description: Connects your WordPress site to content-manager.tr — publish, update and delete posts via a secure token-based API. Supports featured image sideloading, Gutenberg blocks, categories, tags and author selection. Built and maintained by Bahri Meriç Canlı.
- * Version:     1.12.0
+ * Version:     1.12.1
  * Author:      Bahri Meriç Canlı
  * Author URI:  https://www.bahricanli.tr
- * License:     GPL-2.0-or-later
- * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * License:     GPL-3.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-3.0.html
  * Text Domain: bahricanli-publisher
  * Requires at least: 6.0
  * Requires PHP:      8.1
@@ -208,12 +208,10 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
     $content = wp_kses_post($params['content'] ?? '');
     $excerpt = sanitize_textarea_field($params['excerpt'] ?? '');
     $slug    = sanitize_title($params['slug'] ?? $title);
-    $status  = in_array($params['status'] ?? 'draft', ['publish', 'draft', 'pending'], true)
-               ? $params['status']
-               : 'draft';
-    $post_type = in_array($params['post_type'] ?? 'post', ['post', 'page'], true)
-               ? $params['post_type']
-               : 'post';
+    $status = $params['status'] ?? 'draft';
+    $status = in_array($status, ['publish', 'draft', 'pending'], true) ? $status : 'draft';
+    $post_type = $params['post_type'] ?? 'post';
+    $post_type = in_array($post_type, ['post', 'page'], true) ? $post_type : 'post';
 
     if (empty($title) || empty($content)) {
         return new WP_REST_Response(['error' => 'title ve content zorunlu'], 400);
@@ -265,27 +263,18 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
     bahrpu_set_seo_meta_description($post_id, $excerpt);
 
     $featured_image_url = sanitize_url($params['featured_image'] ?? '');
-    if ($featured_image_url) {
-        $attachment_id = bahrpu_sideload_image($featured_image_url, $post_id, $title);
-        if ($attachment_id && ! is_wp_error($attachment_id)) {
-            set_post_thumbnail($post_id, $attachment_id);
-        }
-    }
-
-    // og:image için küçük JPEG — AVIF featured image'dan ayrı, botlar AVIF desteklemiyor
     $original_image_url = sanitize_url($params['original_image_url'] ?? '');
-    if ($original_image_url) {
-        $social_url = bahrpu_social_image_url($original_image_url);
-        $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $title);
-        if ($social_id && ! is_wp_error($social_id)) {
-            $social_url_saved = wp_get_attachment_url($social_id);
-            update_post_meta($post_id, '_cm_social_image_url', $social_url_saved);
-            update_post_meta($post_id, '_yoast_wpseo_opengraph-image', $social_url_saved);
-            update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $social_id);
+    if ($featured_image_url || $original_image_url) {
+        // Yazı kimliğini uzak görsel indirmelerinin tamamlanmasını beklemeden döndür.
+        $scheduled = wp_schedule_single_event(time(), 'bahrpu_finish_created_post', [
+            $post_id, $featured_image_url, $original_image_url,
+        ]);
+        if (! $scheduled) {
+            bahrpu_finish_created_post($post_id, $featured_image_url, $original_image_url);
         }
+    } else {
+        bahrpu_purge_caches($post_id);
     }
-
-    bahrpu_purge_caches($post_id);
 
     return new WP_REST_Response([
         'post_id'  => $post_id,
@@ -294,12 +283,60 @@ function bahrpu_create_post(WP_REST_Request $request): WP_REST_Response
     ], 201);
 }
 
+function bahrpu_get_managed_post(int $post_id): ?WP_Post
+{
+    if ($post_id <= 0) {
+        return null;
+    }
+
+    $post = get_post($post_id);
+    if (! $post || ! in_array($post->post_type, ['post', 'page'], true)) {
+        return null;
+    }
+
+    return $post;
+}
+
+add_action('bahrpu_finish_created_post', 'bahrpu_finish_created_post', 10, 3);
+
+function bahrpu_finish_created_post(int $post_id, string $featured_url, string $original_url): void
+{
+    $post = bahrpu_get_managed_post($post_id);
+    if (! $post || $post->post_status === 'trash') {
+        return;
+    }
+
+    if ($featured_url && ! get_post_thumbnail_id($post_id)) {
+        $attachment_id = bahrpu_sideload_image($featured_url, $post_id, $post->post_title);
+        if (! is_wp_error($attachment_id) && ! get_post_thumbnail_id($post_id)) {
+            set_post_thumbnail($post_id, $attachment_id);
+        }
+    }
+
+    if ($original_url && ! get_post_meta($post_id, '_cm_social_image_url', true)) {
+        bahrpu_set_social_image($post_id, $original_url, $post->post_title);
+    }
+
+    bahrpu_purge_caches($post_id);
+}
+
+function bahrpu_set_social_image(int $post_id, string $url, string $title): void
+{
+    $attachment_id = bahrpu_sideload_image_as_jpeg(bahrpu_social_image_url($url), $post_id, $title);
+    if ($attachment_id && ! is_wp_error($attachment_id)) {
+        $saved_url = wp_get_attachment_url($attachment_id);
+        update_post_meta($post_id, '_cm_social_image_url', $saved_url);
+        update_post_meta($post_id, '_yoast_wpseo_opengraph-image', $saved_url);
+        update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $attachment_id);
+    }
+}
+
 function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
 {
-    $post_id = (int) $request->get_param('id');
+    $post_id = (int) filter_var($request->get_url_params()['id'] ?? '', FILTER_VALIDATE_INT);
     $params  = $request->get_json_params();
 
-    if (! get_post($post_id)) {
+    if (! bahrpu_get_managed_post($post_id)) {
         return new WP_REST_Response(['error' => 'Post bulunamadı: ' . $post_id], 404);
     }
 
@@ -341,14 +378,7 @@ function bahrpu_update_post(WP_REST_Request $request): WP_REST_Response
     // og:image için küçük JPEG güncelle
     $original_image_url = sanitize_url($params['original_image_url'] ?? '');
     if ($original_image_url) {
-        $social_url = bahrpu_social_image_url($original_image_url);
-        $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $title);
-        if ($social_id && ! is_wp_error($social_id)) {
-            $social_url_saved = wp_get_attachment_url($social_id);
-            update_post_meta($post_id, '_cm_social_image_url', $social_url_saved);
-            update_post_meta($post_id, '_yoast_wpseo_opengraph-image', $social_url_saved);
-            update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $social_id);
-        }
+        bahrpu_set_social_image($post_id, $original_image_url, $title);
     }
 
     bahrpu_purge_caches($post_id);
@@ -453,21 +483,12 @@ function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
 
-    $filter_added = false;
-    if (! current_user_can('upload_files')) {
-        add_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10, 2);
-        $filter_added = true;
-    }
-
     $tmp = bahrpu_download_image($url);
     if (is_wp_error($tmp)) {
-        if ($filter_added) {
-            remove_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10);
-        }
-        return media_sideload_image($url, $post_id, $desc, 'id');
+        return $tmp;
     }
 
-    $basename = basename(wp_parse_url($url, PHP_URL_PATH)) ?: 'image';
+    $basename = basename((string) wp_parse_url($url, PHP_URL_PATH)) ?: 'image';
     // Uzantı yoksa MIME'den belirle (Unsplash gibi uzantısız URL'ler için)
     if (! pathinfo($basename, PATHINFO_EXTENSION)) {
         $mime_type = mime_content_type($tmp);
@@ -486,11 +507,18 @@ function bahrpu_sideload_image(string $url, int $post_id, string $desc): int|WP_
         'tmp_name' => $tmp,
     ];
 
-    $id = media_handle_sideload($file_array, $post_id, $desc);
-    wp_delete_file($tmp);
-
+    $filter_added = ! current_user_can('upload_files');
     if ($filter_added) {
-        remove_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10);
+        add_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10, 2);
+    }
+
+    try {
+        $id = media_handle_sideload($file_array, $post_id, $desc);
+    } finally {
+        if ($filter_added) {
+            remove_filter('user_has_cap', 'bahrpu_grant_upload_cap', 10);
+        }
+        wp_delete_file($tmp);
     }
 
     if (! is_wp_error($id)) {
@@ -527,33 +555,46 @@ function bahrpu_resize_attachment(int $id, int $maxW): void
 }
 
 /**
- * Görseli WordPress'in HTTP API'si (wp_remote_get) ile indirir.
- * Not: Daha önce doğrudan curl_* fonksiyonları kullanılıyordu; WordPress.org
- * eklenti incelemesi gereği yerel curl çağrıları kaldırılıp çekirdek HTTP API'ye
- * geçildi (bkz. https://developer.wordpress.org/plugins/http-api/).
+ * URL ve yönlendirmeleri doğrulayarak görseli geçici dosyaya indirir.
  */
 function bahrpu_download_image(string $url): string|WP_Error
 {
-    $response = wp_remote_get($url, [
-        'timeout'     => 30,
-        'redirection' => 5,
-        'sslverify'   => true,
-        'user-agent'  => 'Mozilla/5.0 (compatible; WordPress)',
+    $tmp = wp_tempnam('bahrpu-image');
+    if (! $tmp) {
+        return new WP_Error('download_failed', 'Görsel için geçici dosya oluşturulamadı.');
+    }
+
+    $max_bytes = 20 * MB_IN_BYTES;
+    $response = wp_safe_remote_get($url, [
+        'timeout'             => 30,
+        'redirection'         => 5,
+        'sslverify'           => true,
+        'user-agent'          => 'Mozilla/5.0 (compatible; WordPress)',
+        'stream'              => true,
+        'filename'            => $tmp,
+        // Bir bayt fazla okuyarak tam sınırdaki dosyayı kesilmiş bir dosyadan ayır.
+        'limit_response_size' => $max_bytes + 1,
     ]);
 
     if (is_wp_error($response)) {
+        wp_delete_file($tmp);
         return $response;
     }
 
     $code = wp_remote_retrieve_response_code($response);
-    $data = wp_remote_retrieve_body($response);
+    clearstatcache(true, $tmp);
+    $size = filesize($tmp);
 
-    if (! $data || $code !== 200) {
+    if ($code !== 200 || ! $size) {
+        wp_delete_file($tmp);
         return new WP_Error('download_failed', "Görsel indirilemedi: HTTP {$code}");
     }
 
-    $tmp = tempnam(sys_get_temp_dir(), 'bahrpu_img_') . '.jpg';
-    file_put_contents($tmp, $data);
+    if ($size > $max_bytes) {
+        wp_delete_file($tmp);
+        return new WP_Error('image_too_large', 'Görsel 20 MiB indirme sınırını aşıyor.');
+    }
+
     return $tmp;
 }
 
@@ -622,8 +663,12 @@ function bahrpu_ajax_handler(): void
 
     $action = sanitize_key($_POST['cm_action'] ?? 'create');
 
-    if ($action === 'update' && ! empty($_POST['post_id'])) {
-        $post_id     = (int) wp_unslash($_POST['post_id']);
+    if ($action === 'update') {
+        $post_id = (int) filter_var(wp_unslash($_POST['post_id'] ?? ''), FILTER_VALIDATE_INT);
+        if (! bahrpu_get_managed_post($post_id)) {
+            wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
+        }
+
         $update_data = ['ID' => $post_id];
         if (! empty($_POST['title']))   $update_data['post_title']   = sanitize_text_field(wp_unslash($_POST['title']));
         if (! empty($_POST['content'])) $update_data['post_content'] = wp_kses_post(wp_unslash($_POST['content']));
@@ -655,16 +700,8 @@ function bahrpu_ajax_handler(): void
             if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
         }
 
-        // og:image için küçük JPEG — AVIF dönüşümü kapalı
         if ($orig_url) {
-            $social_url = bahrpu_social_image_url($orig_url);
-            $social_id  = bahrpu_sideload_image_as_jpeg($social_url, $post_id, $post_title);
-            if ($social_id && ! is_wp_error($social_id)) {
-                $social_url_saved = wp_get_attachment_url($social_id);
-            update_post_meta($post_id, '_cm_social_image_url', $social_url_saved);
-            update_post_meta($post_id, '_yoast_wpseo_opengraph-image', $social_url_saved);
-            update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $social_id);
-            }
+            bahrpu_set_social_image($post_id, $orig_url, $post_title);
         }
 
         bahrpu_purge_caches($post_id);
@@ -722,19 +759,12 @@ function bahrpu_ajax_handler(): void
 
     bahrpu_set_seo_meta_description($post_id, $excerpt);
 
-    // Yazı oluşturuldu — post_id burada kesinleşti, yanıtı hemen gönder. Görsel indirme/
-    // boyutlandırma adımı yavaş olabildiğinden önce burada dönülmezse content-manager
-    // zaman aşımına düşüp aynı yazıyı tekrar gönderiyor, WordPress'te mükerrer post
-    // oluşuyordu.
+    $featured = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
+    $original = sanitize_url(wp_unslash($_POST['original_image_url'] ?? ''));
+    // Yazı kimliğini görsel indirmeleri başlamadan gönder.
     bahrpu_respond_now(['post_id' => $post_id, 'post_url' => get_permalink($post_id), 'status' => $status], 201);
 
-    $featured = sanitize_url(wp_unslash($_POST['featured_image'] ?? ''));
-    if ($featured) {
-        $att = bahrpu_sideload_image($featured, $post_id, $title);
-        if ($att && ! is_wp_error($att)) set_post_thumbnail($post_id, $att);
-    }
-
-    bahrpu_purge_caches($post_id);
+    bahrpu_finish_created_post($post_id, $featured, $original);
 
     exit;
 }
@@ -757,12 +787,13 @@ function bahrpu_delete_handler(): void
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
 
-    $post_id = isset($_POST['post_id']) ? (int) wp_unslash($_POST['post_id']) : 0;
-    if (! $post_id || ! get_post($post_id)) {
+    $post_id = (int) filter_var(wp_unslash($_POST['post_id'] ?? ''), FILTER_VALIDATE_INT);
+    $post    = bahrpu_get_managed_post($post_id);
+    if (! $post) {
         wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
     }
 
-    $was_published = get_post_status($post_id) === 'publish';
+    $was_published = $post->post_status === 'publish';
     $result        = wp_delete_post($post_id, true);
     if ($result) {
         if ($was_published) {
@@ -798,8 +829,8 @@ function bahrpu_fix_images_handler(): void
         wp_send_json(['error' => 'Unauthorized'], 403);
     }
 
-    $post_id = isset($_POST['post_id']) ? (int) wp_unslash($_POST['post_id']) : 0;
-    $post    = get_post($post_id);
+    $post_id = (int) filter_var(wp_unslash($_POST['post_id'] ?? ''), FILTER_VALIDATE_INT);
+    $post    = bahrpu_get_managed_post($post_id);
     if (! $post) {
         wp_send_json(['error' => "Post bulunamadı: {$post_id}"], 404);
     }

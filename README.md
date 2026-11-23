@@ -2,7 +2,9 @@
 
 [![WordPress Plugin Version](https://img.shields.io/wordpress/plugin/v/bahricanli-publisher)](https://wordpress.org/plugins/bahricanli-publisher/)
 [![WordPress Tested Up To](https://img.shields.io/wordpress/plugin/tested/bahricanli-publisher)](https://wordpress.org/plugins/bahricanli-publisher/)
-[![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bahricanli/bahricanli-publisher/badge)](https://scorecard.dev/viewer/?uri=github.com/bahricanli/bahricanli-publisher)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/bmericc)
 
 The official WordPress companion plugin for [content-manager.tr](https://content-manager.tr) — an AI-powered multi-site content management system built and maintained by Bahri Meriç Canlı.
 
@@ -19,7 +21,7 @@ content-manager.tr manages content for multiple WordPress sites simultaneously, 
 - **Auto-resize** uploaded images to a maximum width of 1600 px
 - Token-based authentication — no OAuth or WordPress login required
 - REST API endpoints, with an AJAX fallback for hosts that block the REST API
-- Translation-ready — bundled Turkish (`tr_TR`) translation, defaults to English
+- Turkish-language settings screen
 
 ## Installation
 
@@ -30,16 +32,16 @@ content-manager.tr manages content for multiple WordPress sites simultaneously, 
 
 ## Development
 
-This repository is the source of truth. Releases are published to the [WordPress.org SVN repository](https://plugins.svn.wordpress.org/bahricanli-publisher/) automatically by GitHub Actions whenever a version tag (e.g. `v1.7.0`) is pushed — see [`.github/workflows/deploy-wordpress-org.yml`](.github/workflows/deploy-wordpress-org.yml).
+GitHub Actions publishes releases to the WordPress.org SVN repository when a version tag such as `1.12.1` is pushed. Use the `X.Y.Z` format without a `v` prefix. [WordPress.org SVN](https://plugins.svn.wordpress.org/bahricanli-publisher/) · [Deploy workflow](.github/workflows/deploy-wordpress-org.yml)
 
 To cut a release:
 
 1. Bump `Version:` in `bahricanli-publisher.php` and `Stable tag:` in `readme.txt` to match.
 2. Add a changelog entry to `readme.txt`.
-3. `git tag X.Y.Z && git push origin X.Y.Z`
+3. Once the release commit is on `main`, run `git tag X.Y.Z` and `git push origin X.Y.Z`.
 
 `readme.txt` (not this file) is what WordPress.org parses for the plugin directory page — see the [WordPress readme standard](https://wordpress.org/plugins/readme.txt) for its format.
 
 ## License
 
-[GPL-2.0-or-later](https://www.gnu.org/licenses/gpl-2.0.html)
+Licensed under the GNU General Public License v3.0 or later (`GPL-3.0-or-later`) starting with version `1.12.1`. [License text](LICENSE)
