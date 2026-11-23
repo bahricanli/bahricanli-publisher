@@ -2,7 +2,7 @@
 Contributors:      bmericc
 Tags:              api, content, publishing, rest-api, automation
 Requires at least: 6.0
-Tested up to:      7.0
+Tested up to:      7.1
 Requires PHP:      8.1
 Stable tag:        1.12.1
 License:           GPL-3.0-or-later
